@@ -2,7 +2,7 @@
   "expo": {
     "name": "NationPress",
     "slug": "nationpressapp",
-    "version": "1.0.1",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "nationpress",
@@ -34,7 +34,7 @@
     },
     "android": {
       "package": "com.nationpress.app",
-      "versionCode": 2,
+      "versionCode": 7,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
