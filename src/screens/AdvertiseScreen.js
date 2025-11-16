@@ -4,9 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TextInput,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -19,13 +17,6 @@ const AdvertiseScreen = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [currentLanguage, setCurrentLanguage] = useState('english');
-  const [name, setName] = useState('');
-  const [company, setCompany] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [adType, setAdType] = useState('');
-  const [budget, setBudget] = useState('');
-  const [message, setMessage] = useState('');
 
   useEffect(() => {
     const loadLanguage = async () => {
@@ -48,8 +39,6 @@ const AdvertiseScreen = () => {
     return () => clearInterval(interval);
   }, [currentLanguage]);
 
-  const isHindi = currentLanguage === 'hindi';
-
   const content = {
     english: {
       title: 'Advertise With Us',
@@ -68,15 +57,8 @@ const AdvertiseScreen = () => {
       newsletterTitle: 'Newsletter Advertising',
       newsletterOptions: ['Sponsored emails', 'Newsletter banners', 'Dedicated campaigns', 'Custom solutions'],
       contactTitle: 'Contact Our Advertising Team',
-      nameLabel: 'Full Name',
-      companyLabel: 'Company Name',
-      emailLabel: 'Email Address',
-      phoneLabel: 'Phone Number',
-      adTypeLabel: 'Advertising Type',
-      budgetLabel: 'Advertising Budget',
-      messageLabel: 'Additional Information',
-      submitButton: 'Submit Request',
-      contactEmail: 'contact@nationpress.com',
+      contactEmail: 'corpcom@nationpress.com',
+      emailLabel: 'Email us at:',
       adTypeOptions: [
         { value: 'display', label: 'Display Advertising' },
         { value: 'newsletter', label: 'Newsletter Advertising' },
@@ -107,15 +89,8 @@ const AdvertiseScreen = () => {
       newsletterTitle: 'न्यूज़लेटर विज्ञापन',
       newsletterOptions: ['प्रायोजित ईमेल', 'न्यूज़लेटर बैनर', 'समर्पित अभियान', 'कस्टम समाधान'],
       contactTitle: 'हमारी विज्ञापन टीम से संपर्क करें',
-      nameLabel: 'पूरा नाम',
-      companyLabel: 'कंपनी का नाम',
-      emailLabel: 'ईमेल पता',
-      phoneLabel: 'फोन नंबर',
-      adTypeLabel: 'विज्ञापन प्रकार',
-      budgetLabel: 'विज्ञापन बजट',
-      messageLabel: 'अतिरिक्त जानकारी',
-      submitButton: 'अनुरोध सबमिट करें',
-      contactEmail: 'contact@nationpress.com',
+      contactEmail: 'corpcom@nationpress.com',
+      emailLabel: 'हमें ईमेल करें:',
       adTypeOptions: [
         { value: 'display', label: 'डिस्प्ले विज्ञापन' },
         { value: 'newsletter', label: 'न्यूज़लेटर विज्ञापन' },
@@ -133,35 +108,10 @@ const AdvertiseScreen = () => {
 
   const text = content[currentLanguage] || content.english;
 
-  const handleSubmit = () => {
-    if (!name.trim() || !company.trim() || !email.trim() || !phone.trim() || !adType || !budget || !message.trim()) {
-      Alert.alert(
-        isHindi ? 'त्रुटि' : 'Error',
-        isHindi ? 'कृपया सभी फ़ील्ड भरें' : 'Please fill in all fields'
-      );
-      return;
-    }
-
-    // Create mailto link
-    const subject = encodeURIComponent(`Advertising Inquiry - ${text.adTypeOptions.find(opt => opt.value === adType)?.label || adType}`);
-    const body = encodeURIComponent(
-      `Name: ${name}\n` +
-      `Company: ${company}\n` +
-      `Email: ${email}\n` +
-      `Phone: ${phone}\n` +
-      `Advertising Type: ${text.adTypeOptions.find(opt => opt.value === adType)?.label || adType}\n` +
-      `Budget: ${text.budgetOptions.find(opt => opt.value === budget)?.label || budget}\n\n` +
-      `Additional Information:\n${message}`
-    );
-    
-    const mailtoLink = `mailto:${text.contactEmail}?subject=${subject}&body=${body}`;
-    
+  const handleEmailPress = () => {
+    const mailtoLink = `mailto:${text.contactEmail}`;
     Linking.openURL(mailtoLink).catch((err) => {
       console.error('Error opening email client:', err);
-      Alert.alert(
-        isHindi ? 'त्रुटि' : 'Error',
-        isHindi ? 'ईमेल क्लाइंट खोलने में त्रुटि' : 'Error opening email client'
-      );
     });
   };
 
@@ -212,110 +162,14 @@ const AdvertiseScreen = () => {
           </View>
 
           <Text style={styles.sectionTitle}>{text.contactTitle}</Text>
-          <View style={styles.form}>
-            <Text style={styles.label}>{text.nameLabel}</Text>
-            <TextInput
-              style={styles.input}
-              value={name}
-              onChangeText={setName}
-              placeholder={text.nameLabel}
-              placeholderTextColor={COLORS.textLight}
-            />
-
-            <Text style={styles.label}>{text.companyLabel}</Text>
-            <TextInput
-              style={styles.input}
-              value={company}
-              onChangeText={setCompany}
-              placeholder={text.companyLabel}
-              placeholderTextColor={COLORS.textLight}
-            />
-
-            <Text style={styles.label}>{text.emailLabel}</Text>
-            <TextInput
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              placeholder={text.emailLabel}
-              placeholderTextColor={COLORS.textLight}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-
-            <Text style={styles.label}>{text.phoneLabel}</Text>
-            <TextInput
-              style={styles.input}
-              value={phone}
-              onChangeText={setPhone}
-              placeholder={text.phoneLabel}
-              placeholderTextColor={COLORS.textLight}
-              keyboardType="phone-pad"
-            />
-
-            <Text style={styles.label}>{text.adTypeLabel}</Text>
-            <View style={styles.selectContainer}>
-              {text.adTypeOptions.map((option) => (
-                <TouchableOpacity
-                  key={option.value}
-                  style={[
-                    styles.selectOption,
-                    adType === option.value && styles.selectOptionSelected,
-                  ]}
-                  onPress={() => setAdType(option.value)}
-                >
-                  <Text
-                    style={[
-                      styles.selectOptionText,
-                      adType === option.value && styles.selectOptionTextSelected,
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.label}>{text.budgetLabel}</Text>
-            <View style={styles.selectContainer}>
-              {text.budgetOptions.map((option) => (
-                <TouchableOpacity
-                  key={option.value}
-                  style={[
-                    styles.selectOption,
-                    budget === option.value && styles.selectOptionSelected,
-                  ]}
-                  onPress={() => setBudget(option.value)}
-                >
-                  <Text
-                    style={[
-                      styles.selectOptionText,
-                      budget === option.value && styles.selectOptionTextSelected,
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.label}>{text.messageLabel}</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={message}
-              onChangeText={setMessage}
-              placeholder={text.messageLabel}
-              placeholderTextColor={COLORS.textLight}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
-
+          <View style={styles.emailContainer}>
+            <Text style={styles.emailLabel}>{text.emailLabel}</Text>
             <TouchableOpacity
-              style={styles.submitButton}
-              onPress={handleSubmit}
-              activeOpacity={0.8}
+              style={styles.emailButton}
+              onPress={handleEmailPress}
+              activeOpacity={0.7}
             >
-              <Text style={styles.submitButtonText}>{text.submitButton}</Text>
+              <Text style={styles.emailText}>{text.contactEmail}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -392,68 +246,27 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
     lineHeight: 20,
   },
-  form: {
+  emailContainer: {
     marginTop: SPACING.md,
-  },
-  label: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-    marginTop: SPACING.md,
-  },
-  input: {
     backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
     borderRadius: 8,
-    padding: SPACING.md,
-    fontSize: FONT_SIZES.md,
-    color: COLORS.text,
-    minHeight: 48,
-  },
-  textArea: {
-    minHeight: 100,
-    paddingTop: SPACING.md,
-  },
-  selectContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING.sm,
-    marginBottom: SPACING.sm,
-  },
-  selectOption: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
-    marginBottom: SPACING.xs,
-  },
-  selectOptionSelected: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  selectOptionText: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.text,
-  },
-  selectOptionTextSelected: {
-    color: COLORS.background,
-    fontWeight: '600',
-  },
-  submitButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
-    padding: SPACING.md,
+    padding: SPACING.lg,
     alignItems: 'center',
-    marginTop: SPACING.lg,
   },
-  submitButtonText: {
-    color: COLORS.background,
+  emailLabel: {
     fontSize: FONT_SIZES.md,
+    color: COLORS.textLight,
+    marginBottom: SPACING.md,
+  },
+  emailButton: {
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+  },
+  emailText: {
+    fontSize: FONT_SIZES.lg,
+    color: COLORS.primary,
     fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });
 

@@ -4,14 +4,12 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TextInput,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Header from '../components/Header';
-import { COLORS, SPACING, FONT_SIZES, LANGUAGES } from '../config/constants';
+import { COLORS, SPACING, FONT_SIZES } from '../config/constants';
 import { storage } from '../utils/storage';
 import { Linking } from 'react-native';
 
@@ -19,10 +17,6 @@ const ContactScreen = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [currentLanguage, setCurrentLanguage] = useState('english');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [subject, setSubject] = useState('');
-  const [message, setMessage] = useState('');
 
   useEffect(() => {
     const loadLanguage = async () => {
@@ -45,57 +39,33 @@ const ContactScreen = () => {
     return () => clearInterval(interval);
   }, [currentLanguage]);
 
-  const isHindi = currentLanguage === 'hindi';
-
   const content = {
     english: {
       title: 'Contact Us',
       heading: 'Get in Touch',
-      description: 'We would love to hear from you. Send us a message and we will respond as soon as possible.',
-      nameLabel: 'Name',
-      emailLabel: 'Email',
-      subjectLabel: 'Subject',
-      messageLabel: 'Message',
-      sendButton: 'Send Message',
+      description: 'We would love to hear from you. Send us an email and we will respond as soon as possible.',
       contactInfo: 'Contact Information',
       email: 'contact@nationpress.com',
       phone: '+91-7588866643',
+      emailLabel: 'Email us at:',
     },
     hindi: {
       title: 'संपर्क करें',
       heading: 'हमसे संपर्क करें',
-      description: 'हम आपसे सुनना पसंद करेंगे। हमें एक संदेश भेजें और हम जल्द से जल्द जवाब देंगे।',
-      nameLabel: 'नाम',
-      emailLabel: 'ईमेल',
-      subjectLabel: 'विषय',
-      messageLabel: 'संदेश',
-      sendButton: 'संदेश भेजें',
+      description: 'हम आपसे सुनना पसंद करेंगे। हमें एक ईमेल भेजें और हम जल्द से जल्द जवाब देंगे।',
       contactInfo: 'संपर्क जानकारी',
       email: 'contact@nationpress.com',
       phone: '+91-7588866643',
+      emailLabel: 'हमें ईमेल करें:',
     },
   };
 
   const text = content[currentLanguage] || content.english;
 
-  const handleSend = () => {
-    if (!name.trim() || !email.trim() || !subject.trim() || !message.trim()) {
-      Alert.alert(
-        isHindi ? 'त्रुटि' : 'Error',
-        isHindi ? 'कृपया सभी फ़ील्ड भरें' : 'Please fill in all fields'
-      );
-      return;
-    }
-
-    // Create mailto link
-    const mailtoLink = `mailto:${text.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(`Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`)}`;
-    
+  const handleEmailPress = () => {
+    const mailtoLink = `mailto:${text.email}`;
     Linking.openURL(mailtoLink).catch((err) => {
       console.error('Error opening email client:', err);
-      Alert.alert(
-        isHindi ? 'त्रुटि' : 'Error',
-        isHindi ? 'ईमेल क्लाइंट खोलने में त्रुटि' : 'Error opening email client'
-      );
     });
   };
 
@@ -120,60 +90,18 @@ const ContactScreen = () => {
           <Text style={styles.heading}>{text.heading}</Text>
           <Text style={styles.description}>{text.description}</Text>
 
-          <View style={styles.form}>
-            <Text style={styles.label}>{text.nameLabel}</Text>
-            <TextInput
-              style={styles.input}
-              value={name}
-              onChangeText={setName}
-              placeholder={text.nameLabel}
-              placeholderTextColor={COLORS.textLight}
-            />
-
-            <Text style={styles.label}>{text.emailLabel}</Text>
-            <TextInput
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              placeholder={text.emailLabel}
-              placeholderTextColor={COLORS.textLight}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-
-            <Text style={styles.label}>{text.subjectLabel}</Text>
-            <TextInput
-              style={styles.input}
-              value={subject}
-              onChangeText={setSubject}
-              placeholder={text.subjectLabel}
-              placeholderTextColor={COLORS.textLight}
-            />
-
-            <Text style={styles.label}>{text.messageLabel}</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={message}
-              onChangeText={setMessage}
-              placeholder={text.messageLabel}
-              placeholderTextColor={COLORS.textLight}
-              multiline
-              numberOfLines={6}
-              textAlignVertical="top"
-            />
-
-            <TouchableOpacity
-              style={styles.sendButton}
-              onPress={handleSend}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.sendButtonText}>{text.sendButton}</Text>
-            </TouchableOpacity>
-          </View>
-
           <View style={styles.contactInfo}>
             <Text style={styles.sectionTitle}>{text.contactInfo}</Text>
-            <Text style={styles.infoText}>{text.email}</Text>
+            <View style={styles.emailContainer}>
+              <Text style={styles.emailLabel}>{text.emailLabel}</Text>
+              <TouchableOpacity
+                style={styles.emailButton}
+                onPress={handleEmailPress}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.emailText}>{text.email}</Text>
+              </TouchableOpacity>
+            </View>
             <Text style={styles.infoText}>{text.phone}</Text>
           </View>
         </View>
@@ -207,47 +135,30 @@ const styles = StyleSheet.create({
     color: COLORS.textLight,
     marginBottom: SPACING.xl,
   },
-  form: {
-    marginBottom: SPACING.xl,
-  },
-  label: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-    marginTop: SPACING.md,
-  },
-  input: {
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: SPACING.md,
-    fontSize: FONT_SIZES.md,
-    color: COLORS.text,
-    minHeight: 48,
-  },
-  textArea: {
-    minHeight: 120,
-    paddingTop: SPACING.md,
-  },
-  sendButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
-    padding: SPACING.md,
-    alignItems: 'center',
-    marginTop: SPACING.lg,
-  },
-  sendButtonText: {
-    color: COLORS.background,
-    fontSize: FONT_SIZES.md,
-    fontWeight: '600',
-  },
   contactInfo: {
     marginTop: SPACING.xl,
-    paddingTop: SPACING.lg,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+  },
+  emailContainer: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 8,
+    padding: SPACING.lg,
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  emailLabel: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.textLight,
+    marginBottom: SPACING.md,
+  },
+  emailButton: {
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+  },
+  emailText: {
+    fontSize: FONT_SIZES.lg,
+    color: COLORS.primary,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   sectionTitle: {
     fontSize: FONT_SIZES.xl,
