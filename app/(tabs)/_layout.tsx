@@ -1,33 +1,83 @@
 import { Tabs } from 'expo-router';
-import React from 'react';
-
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import React, { useEffect, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { COLORS, TAB_LABELS } from '../../src/config/constants';
+import { storage } from '../../src/utils/storage';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const [currentLanguage, setCurrentLanguage] = useState('english');
+
+  useEffect(() => {
+    const loadLanguage = async () => {
+      try {
+        const language = await storage.getLanguage();
+        setCurrentLanguage(language || 'english');
+      } catch (error) {
+        console.error('Error loading language:', error);
+      }
+    };
+    loadLanguage();
+
+    // Listen for language changes
+    const interval = setInterval(async () => {
+      const language = await storage.getLanguage();
+      setCurrentLanguage(language || 'english');
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const getTabLabel = (tabKey: string) => {
+    return TAB_LABELS[currentLanguage]?.[tabKey] || TAB_LABELS.english[tabKey];
+  };
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: COLORS.primary,
+        tabBarInactiveTintColor: COLORS.textLight,
         headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
+        tabBarStyle: {
+          backgroundColor: COLORS.background,
+          borderTopColor: COLORS.border,
+          borderTopWidth: 1,
+        },
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: getTabLabel('home'),
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="stories"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: getTabLabel('stories'),
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? 'book' : 'book-outline'} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="bookmarks"
+        options={{
+          title: getTabLabel('bookmarks'),
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? 'bookmark' : 'bookmark-outline'} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          title: getTabLabel('notifications'),
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? 'notifications' : 'notifications-outline'} size={size} color={color} />
+          ),
         }}
       />
     </Tabs>

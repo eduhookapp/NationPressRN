@@ -1,24 +1,39 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { AppProvider } from '../src/providers/AppProvider';
+import { AppWrapper } from '../src/components/AppWrapper';
 
 export const unstable_settings = {
-  anchor: '(tabs)',
+  initialRouteName: '(tabs)',
 };
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <AppProvider>
+        <AppWrapper>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="article/[category]/[slug]" options={{ headerShown: false }} />
+            <Stack.Screen name="category/[category]" options={{ headerShown: false }} />
+            <Stack.Screen name="search" options={{ headerShown: false }} />
+            <Stack.Screen name="web-stories" options={{ headerShown: false }} />
+            <Stack.Screen name="web-story/[slug]" options={{ headerShown: false }} />
+            <Stack.Screen name="about" options={{ headerShown: false }} />
+            <Stack.Screen name="contact" options={{ headerShown: false }} />
+            <Stack.Screen name="privacy" options={{ headerShown: false }} />
+            <Stack.Screen name="terms" options={{ headerShown: false }} />
+            <Stack.Screen name="disclaimer" options={{ headerShown: false }} />
+            <Stack.Screen name="cookie-policy" options={{ headerShown: false }} />
+            <Stack.Screen name="advertise" options={{ headerShown: false }} />
+            <Stack.Screen name="[...path]" options={{ headerShown: false }} />
+          </Stack>
+          <StatusBar style="auto" />
+        </AppWrapper>
+      </AppProvider>
+    </SafeAreaProvider>
   );
 }

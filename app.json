@@ -1,17 +1,40 @@
 {
   "expo": {
     "name": "NationPress",
-    "slug": "NationPress",
-    "version": "1.0.0",
+    "slug": "nationpressapp",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "nationpress",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
+    "jsEngine": "hermes",
     "newArchEnabled": true,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#6B2C1A",
+      "image": "./assets/images/splash-icon.png",
+      "imageWidth": 200
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nationpress.app",
+      "jsEngine": "jsc",
+      "associatedDomains": [
+        "applinks:www.nationpress.com",
+        "applinks:nationpress.com",
+        "applinks:www.rashtrapress.com",
+        "applinks:rashtrapress.com"
+      ],
+      "config": {
+        "googleMobileAdsAppId": "ca-app-pub-3552884226286157~1266345200"
+      }
     },
     "android": {
+      "package": "com.nationpress.app",
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -19,7 +42,36 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ],
+      "config": {
+        "googleMobileAdsAppId": "ca-app-pub-3552884226286157~1266345200"
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "www.nationpress.com",
+              "pathPrefix": "/"
+            },
+            {
+              "scheme": "https",
+              "host": "www.rashtrapress.com",
+              "pathPrefix": "/"
+            },
+            {
+              "scheme": "nationpress"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "output": "static",
@@ -33,9 +85,9 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#6B2C1A",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#6B2C1A"
           }
         }
       ]
@@ -44,5 +96,10 @@
       "typedRoutes": true,
       "reactCompiler": true
     }
+  },
+  "react-native-google-mobile-ads": {
+    "android_app_id": "ca-app-pub-3552884226286157~1266345200",
+    "ios_app_id": "ca-app-pub-3552884226286157~7057179198",
+    "user_tracking_usage_description": "This identifier will be used to deliver personalized ads to you."
   }
 }
