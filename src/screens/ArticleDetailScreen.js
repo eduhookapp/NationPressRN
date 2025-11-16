@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
+import AutoHeightWebView from 'react-native-autoheight-webview';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
@@ -196,7 +197,6 @@ const ArticleDetailScreen = ({ route }) => {
   const [post, setPost] = useState(initialPost || null);
   const [relatedPosts, setRelatedPosts] = useState([]);
   const [loading, setLoading] = useState(!initialPost);
-  const [webViewHeight, setWebViewHeight] = useState(500);
   const [synopsisHeight, setSynopsisHeight] = useState(100);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [imageAspectRatio, setImageAspectRatio] = useState(16 / 9);
@@ -271,7 +271,6 @@ const ArticleDetailScreen = ({ route }) => {
     // Reset all states when slug changes (new article) or reloadKey changes (force reload)
     const reloadKey = route.params?.reloadKey;
     setWebViewReady({ synopsis: false, content: false, youtube: false });
-    setWebViewHeight(500);
     setSynopsisHeight(100);
     setRelatedPosts([]);
     isNavigatingRef.current = false; // Reset navigation flag
@@ -320,7 +319,6 @@ const ArticleDetailScreen = ({ route }) => {
       // Reset states on unmount to prevent memory leaks
       if (isMountedRef.current) {
         setWebViewReady({ synopsis: false, content: false, youtube: false });
-        setWebViewHeight(500);
         setSynopsisHeight(100);
       }
       // Stop TTS if playing
@@ -1305,9 +1303,8 @@ const ArticleDetailScreen = ({ route }) => {
             <View style={styles.section}>
               {content.includes('<') ? (
                 webViewReady.content ? (
-                  <WebView
+                  <AutoHeightWebView
                   key={`content-${post?.id || slug || 'unknown'}`}
-                  originWhitelist={['*']}
                   source={{ html: `
                     <!DOCTYPE html>
                     <html>
@@ -1356,7 +1353,12 @@ const ArticleDetailScreen = ({ route }) => {
                         .replace(/pk\//g, '')}</body>
                     </html>
                   ` }}
-                  style={[styles.webView, { height: Math.max(500, webViewHeight) }]}
+                  style={styles.webView}
+                  customStyle={`
+                    body {
+                      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    }
+                  `}
                   scrollEnabled={false}
                   showsVerticalScrollIndicator={false}
                   javaScriptEnabled={true}
@@ -1379,24 +1381,6 @@ const ArticleDetailScreen = ({ route }) => {
                       global.crashLogger.logError('Content WebView render process crashed', JSON.stringify(nativeEvent));
                     }
                   }}
-                  onMessage={(event) => {
-                    try {
-                      const height = parseInt(event.nativeEvent.data);
-                      if (height > 0 && !isNaN(height)) setWebViewHeight(height + 30);
-                    } catch (error) {
-                      console.error('Error parsing content height:', error);
-                    }
-                  }}
-                  injectedJavaScript={`
-                    setTimeout(() => {
-                      try {
-                        window.ReactNativeWebView.postMessage(document.body.scrollHeight);
-                      } catch(e) {
-                        window.ReactNativeWebView.postMessage('0');
-                      }
-                    }, 100);
-                    true;
-                  `}
                 />
                 ) : (
                   <View style={styles.loadingContainer}>
