@@ -8,9 +8,7 @@ import {
   ActivityIndicator,
   Dimensions,
   Animated,
-  TouchableOpacity
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -39,7 +37,8 @@ const HomeScreen = () => {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [currentLanguage, setCurrentLanguage] = useState('english');
-  const [collapsedAds, setCollapsedAds] = useState(new Set());
+  // Track which ads have loaded successfully
+  const [adsLoaded, setAdsLoaded] = useState({});
   const fadeAnim = React.useRef(new Animated.Value(1)).current;
   const scrollY = React.useRef(new Animated.Value(0)).current;
   const logoTranslateY = React.useRef(new Animated.Value(0)).current;
@@ -180,6 +179,9 @@ const HomeScreen = () => {
     setLoading(true);
     setPage(0);
     setHasMore(true);
+    
+    // Reset ad loaded states for new category/language
+    setAdsLoaded({});
     
     // Reset fade animation to show loader immediately
     fadeAnim.setValue(1);
@@ -328,55 +330,29 @@ const HomeScreen = () => {
     });
   };
 
-  const toggleAdCollapse = (adId) => {
-    setCollapsedAds(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(adId)) {
-        newSet.delete(adId);
-      } else {
-        newSet.add(adId);
-      }
-      return newSet;
-    });
-  };
-
   const renderItem = ({ item, index }) => {
     // Render ad
     if (item.isAd) {
       const adId = item.id;
-      const isCollapsed = collapsedAds.has(adId);
+      const isAdLoaded = adsLoaded[adId] || false;
       
       return (
-        <View style={styles.adContainer}>
-          <View style={styles.adHeader}>
-            <Text style={styles.adLabel}>Advertisement</Text>
-            <TouchableOpacity
-              style={styles.collapseButton}
-              onPress={() => toggleAdCollapse(adId)}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={isCollapsed ? 'chevron-down' : 'chevron-up'}
-                size={20}
-                color={COLORS.textLight}
-              />
-            </TouchableOpacity>
-          </View>
-          {!isCollapsed && (
-            <BannerAd
-              unitId={getAdUnitId('banner', index % 2 === 0 ? 'home' : 'stories')}
-              size={BannerAdSize.LARGE_BANNER}
-              requestOptions={{
-                requestNonPersonalizedAdsOnly: false,
-              }}
-              onAdLoaded={() => {
-                console.log(`[Home] Ad ${index} loaded`);
-              }}
-              onAdFailedToLoad={(error) => {
-                console.log(`[Home] Ad ${index} failed:`, error);
-              }}
-            />
-          )}
+        <View style={isAdLoaded ? styles.adContainer : { height: 0, overflow: 'hidden' }}>
+          <BannerAd
+            unitId={getAdUnitId('banner', index % 2 === 0 ? 'home' : 'stories')}
+            size={BannerAdSize.LARGE_BANNER}
+            requestOptions={{
+              requestNonPersonalizedAdsOnly: false,
+            }}
+            onAdLoaded={() => {
+              console.log(`[Home] Ad ${index} loaded`);
+              setAdsLoaded(prev => ({ ...prev, [adId]: true }));
+            }}
+            onAdFailedToLoad={(error) => {
+              console.log(`[Home] Ad ${index} failed:`, error);
+              setAdsLoaded(prev => ({ ...prev, [adId]: false }));
+            }}
+          />
         </View>
       );
     }
@@ -586,29 +562,6 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
     marginVertical: SPACING.sm,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  adHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
-    paddingHorizontal: SPACING.md,
-    paddingBottom: SPACING.sm,
-    marginBottom: SPACING.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  adLabel: {
-    fontSize: 11,
-    color: COLORS.textLight,
-    fontWeight: '500',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  collapseButton: {
-    padding: SPACING.xs,
   },
 });
 

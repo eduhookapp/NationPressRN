@@ -1416,6 +1416,9 @@ const ArticleDetailScreen = ({ route }) => {
             </View>
           )}
 
+          {/* Spacing after content and before Point of View */}
+          {pointOfView && <View style={{ height: SPACING.xl }} />}
+
           {/* Ad After Content */}
           {AD_CONFIG.storiesBanner && content && (
             <View style={adsLoaded.afterContent ? styles.contentAdContainer : { height: 0, overflow: 'hidden' }}>
@@ -1437,8 +1440,7 @@ const ArticleDetailScreen = ({ route }) => {
             </View>
           )}
 
-          {/* Spacing after content and before Point of View */}
-          {pointOfView && <View style={{ height: SPACING.xl }} />}
+     
 
           {/* Point of View Section */}
           {pointOfView && (
