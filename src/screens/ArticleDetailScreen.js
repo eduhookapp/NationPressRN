@@ -68,6 +68,35 @@ const parseHtmlList = (htmlString) => {
   }).filter(item => item.trim().length > 0);
 };
 
+// Helper function to clean content (similar to web story filtering)
+const cleanContent = (content) => {
+  if (!content || typeof content !== 'string') return content;
+  
+  return content
+    // Remove unwanted HTML segments
+    .replace(/<\/p><p>--IANS<\/p><p>ms\/vd<\/p><\/p>/g, '')
+    .replace(/<\/p><p>--IANS<\/p><\/p>/g, '')
+    .replace(/<p><img[^>]*><\/p>/g, '')
+    // Replace (IANS) with (NationPress)
+    .replace(/\(IANS\)/g, '(NationPress)')
+    // Remove --IANS and everything after it (handle all dash types: -, –, —)
+    .replace(/--IANS[\s\S]*$/g, '')
+    .replace(/—IANS[\s\S]*$/g, '') // em dash
+    .replace(/–IANS[\s\S]*$/g, '') // en dash
+    // Remove various IANS patterns (including en dash –)
+    .replace(/(--|-|—|–)\s*IANS/g, '')
+    .replace(/—IANS/g, '') // em dash
+    .replace(/–IANS/g, '') // en dash
+    // Remove unwanted text patterns
+    .replace(/aal\/rad/g, '')
+    .replace(/na\//g, '')
+    .replace(/pk\//g, '')
+    .replace(/rd\//g, '')
+    .replace(/ms\/vd/g, '')
+    // Replace escaped quotes
+    .replace(/\\"/g, "'");
+};
+
 // Helper function to render text with bold formatting (supports HTML <strong> and markdown **)
 const renderBoldText = (text, textStyle) => {
   if (!text) return null;
@@ -1286,13 +1315,10 @@ const ArticleDetailScreen = ({ route }) => {
                           }
                         </style>
                       </head>
-                      <body>${(content || '')
+                      <body>${cleanContent((content || '')
                         .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
                         .replace(/\*(.*?)\*/g, '<b>$1</b>')
-                        .replace(/<b><b>(.*?)<\/b><\/b>/g, '<b>$1</b>')
-                        .replace(/(--|-|—)\s*IANS/g, '')
-                        .replace(/na\//g, '')
-                        .replace(/pk\//g, '')}</body>
+                        .replace(/<b><b>(.*?)<\/b><\/b>/g, '<b>$1</b>'))}</body>
                     </html>
                   ` }}
                   style={styles.webView}
@@ -1331,12 +1357,9 @@ const ArticleDetailScreen = ({ route }) => {
                 )
               ) : (
                 <Text style={styles.textContent}>
-                  {content
+                  {cleanContent(content
                     .replace(/\*\*(.*?)\*\*/g, '$1') // Remove ** for now (Text component doesn't support bold easily)
-                    .replace(/\*(.*?)\*/g, '$1')
-                    .replace(/(--|-|—)\s*IANS/g, '')
-                    .replace(/na\//g, '')
-                    .replace(/pk\//g, '')}
+                    .replace(/\*(.*?)\*/g, '$1'))}
                 </Text>
               )}
             </View>
