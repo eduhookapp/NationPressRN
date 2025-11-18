@@ -14,6 +14,7 @@ import { Image } from 'expo-image';
 import { useRouter, useSegments } from 'expo-router';
 import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
 import { apiService } from '../services/api';
+import { storage } from '../utils/storage';
 import { COLORS, SPACING, FONT_SIZES } from '../config/constants';
 import { getAdUnitId, AD_CONFIG } from '../config/adsConfig';
 import Header from '../components/Header';
@@ -34,6 +35,7 @@ const WebStoriesScreen = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [currentLanguage, setCurrentLanguage] = useState('english');
 
   const loadStories = async (pageNum = 0, append = false) => {
     try {
@@ -64,11 +66,54 @@ const WebStoriesScreen = () => {
     }
   };
 
+  // Load current language on mount and listen for changes
   useEffect(() => {
-    loadStories(0, false);
+    const loadLanguage = async () => {
+      try {
+        const language = await storage.getLanguage();
+        setCurrentLanguage(language || 'english');
+      } catch (error) {
+        console.error('[WebStories] Error loading language:', error);
+      }
+    };
+    loadLanguage();
+
+    // Poll for language changes every 500ms
+    const interval = setInterval(async () => {
+      try {
+        const language = await storage.getLanguage();
+        setCurrentLanguage(prev => {
+          if (prev !== language) {
+            console.log('[WebStories] Language changed from', prev, 'to', language);
+            return language || 'english';
+          }
+          return prev;
+        });
+      } catch (error) {
+        console.error('[WebStories] Error checking language:', error);
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Reload stories when language changes
+  useEffect(() => {
+    console.log('[WebStories] Language changed, reloading stories...');
+    console.log('[WebStories] Language:', currentLanguage);
+    
+    // Clear stories immediately when language changes for smooth transition
+    setStories([]);
+    setLoading(true);
     setPage(0);
     setHasMore(true);
-  }, []);
+    
+    // Clear cache when language changes
+    apiService.clearCache();
+    
+    // Load new stories
+    loadStories(0, false);
+  }, [currentLanguage]);
 
   const handleRefresh = () => {
     setRefreshing(true);

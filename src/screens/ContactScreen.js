@@ -48,6 +48,7 @@ const ContactScreen = () => {
       email: 'contact@nationpress.com',
       phone: '+91-7588866643',
       emailLabel: 'Email us at:',
+      phoneLabel: 'Call or WhatsApp us:',
     },
     hindi: {
       title: 'संपर्क करें',
@@ -57,6 +58,7 @@ const ContactScreen = () => {
       email: 'contact@nationpress.com',
       phone: '+91-7588866643',
       emailLabel: 'हमें ईमेल करें:',
+      phoneLabel: 'हमें कॉल करें या WhatsApp करें:',
     },
   };
 
@@ -66,6 +68,23 @@ const ContactScreen = () => {
     const mailtoLink = `mailto:${text.email}`;
     Linking.openURL(mailtoLink).catch((err) => {
       console.error('Error opening email client:', err);
+    });
+  };
+
+  const handlePhonePress = () => {
+    // Remove dashes and spaces from phone number for WhatsApp
+    const phoneNumber = text.phone.replace(/[\s-]/g, '');
+    // WhatsApp deep link format: https://wa.me/PHONENUMBER (without +)
+    const whatsappNumber = phoneNumber.replace('+', '');
+    const whatsappLink = `https://wa.me/${whatsappNumber}`;
+    
+    Linking.openURL(whatsappLink).catch((err) => {
+      console.error('Error opening WhatsApp:', err);
+      // Fallback to tel: link if WhatsApp is not available
+      const telLink = `tel:${phoneNumber}`;
+      Linking.openURL(telLink).catch((telErr) => {
+        console.error('Error opening phone dialer:', telErr);
+      });
     });
   };
 
@@ -102,7 +121,16 @@ const ContactScreen = () => {
                 <Text style={styles.emailText}>{text.email}</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.infoText}>{text.phone}</Text>
+            <View style={styles.phoneContainer}>
+              <Text style={styles.phoneLabel}>{text.phoneLabel}</Text>
+              <TouchableOpacity
+                style={styles.phoneButton}
+                onPress={handlePhonePress}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.phoneText}>{text.phone}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -160,16 +188,33 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textDecorationLine: 'underline',
   },
+  phoneContainer: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 8,
+    padding: SPACING.lg,
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  phoneLabel: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.textLight,
+    marginBottom: SPACING.md,
+  },
+  phoneButton: {
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+  },
+  phoneText: {
+    fontSize: FONT_SIZES.lg,
+    color: COLORS.primary,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
   sectionTitle: {
     fontSize: FONT_SIZES.xl,
     fontWeight: '600',
     color: COLORS.text,
     marginBottom: SPACING.md,
-  },
-  infoText: {
-    fontSize: FONT_SIZES.md,
-    color: COLORS.text,
-    marginBottom: SPACING.sm,
   },
 });
 

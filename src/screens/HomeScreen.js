@@ -118,21 +118,54 @@ const HomeScreen = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Get submenu items for selected category
+  // Get submenu items for selected category based on current language
   const getSubmenuItems = () => {
-    return CATEGORY_SUBMENU_ITEMS[selectedCategory] || [];
+    const categoryItems = CATEGORY_SUBMENU_ITEMS[selectedCategory];
+    if (!categoryItems) return [];
+    
+    // Handle old format (array) for backward compatibility
+    if (Array.isArray(categoryItems)) {
+      return categoryItems;
+    }
+    
+    // Handle new format (object with english/hindi)
+    if (typeof categoryItems === 'object' && categoryItems[currentLanguage]) {
+      return categoryItems[currentLanguage] || categoryItems.english || [];
+    }
+    
+    return [];
   };
 
-  // Insert ads into posts array after every 2 items
+  // Map Hindi tag to English tag for search
+  const getEnglishTagForSearch = (hindiTag) => {
+    const categoryItems = CATEGORY_SUBMENU_ITEMS[selectedCategory];
+    if (!categoryItems || Array.isArray(categoryItems)) {
+      return hindiTag; // Return as-is if old format or not found
+    }
+    
+    const hindiTags = categoryItems.hindi || [];
+    const englishTags = categoryItems.english || [];
+    const index = hindiTags.indexOf(hindiTag);
+    
+    if (index >= 0 && index < englishTags.length) {
+      return englishTags[index];
+    }
+    
+    return hindiTag; // Fallback to original if not found
+  };
+
+  // Insert only ONE ad per screen for Families compliance (after 3rd item)
   const getDataWithAds = (postsArray) => {
     if (!AD_CONFIG.storiesBanner) return postsArray;
     
     const result = [];
+    let adInserted = false;
     postsArray.forEach((post, index) => {
       result.push(post);
-      // Add ad after every 2nd item
-      if ((index + 1) % 2 === 0) {
+      // Add only ONE ad after the 3rd item (Families Policy: only one ad per page)
+      if (!adInserted && (index + 1) === 3) {
         result.push({ isAd: true, id: `ad-${index}` });
+        adInserted = true;
       }
     });
     return result;
@@ -324,9 +357,11 @@ const HomeScreen = () => {
   };
 
   const handleTagPress = (tag) => {
+    // If current language is Hindi, convert to English for search
+    const searchQuery = currentLanguage === 'hindi' ? getEnglishTagForSearch(tag) : tag;
     router.push({
       pathname: '/search',
-      params: { query: tag },
+      params: { query: searchQuery },
     });
   };
 

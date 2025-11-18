@@ -203,17 +203,13 @@ const ArticleDetailScreen = ({ route }) => {
   const [webViewReady, setWebViewReady] = useState({ synopsis: false, content: false, youtube: false });
   const [isTTSPlaying, setIsTTSPlaying] = useState(false);
   const [currentLanguage, setCurrentLanguage] = useState('english');
-  // Track which ads have loaded successfully
+  // Track which ads have loaded successfully (only sticky ad for Families compliance)
   const [adsLoaded, setAdsLoaded] = useState({
-    afterImage: false,
-    afterSynopsis: false,
-    afterKeyTakeaways: false,
-    afterContent: false,
-    afterPointOfView: false,
-    afterFAQs: false,
-    inline: false,
     sticky: false,
   });
+  // Track if sticky ad can be closed (after 5 seconds for Families compliance)
+  const [stickyAdCanClose, setStickyAdCanClose] = useState(false);
+  const stickyAdTimerRef = useRef(null);
   
   // All refs
   const isNavigatingRef = useRef(false);
@@ -276,15 +272,14 @@ const ArticleDetailScreen = ({ route }) => {
     isNavigatingRef.current = false; // Reset navigation flag
     // Reset ad loaded states for new article
     setAdsLoaded({
-      afterImage: false,
-      afterSynopsis: false,
-      afterKeyTakeaways: false,
-      afterContent: false,
-      afterPointOfView: false,
-      afterFAQs: false,
-      inline: false,
       sticky: false,
     });
+    setStickyAdCanClose(false);
+    // Clear any existing timer
+    if (stickyAdTimerRef.current) {
+      clearTimeout(stickyAdTimerRef.current);
+      stickyAdTimerRef.current = null;
+    }
     
     // Stop TTS if playing when navigating to new article
     Tts.stop();
@@ -313,7 +308,7 @@ const ArticleDetailScreen = ({ route }) => {
     };
   }, []);
   
-  // Cleanup WebViews and TTS when component unmounts
+  // Cleanup WebViews, TTS, and ad timers when component unmounts
   useEffect(() => {
     return () => {
       // Reset states on unmount to prevent memory leaks
@@ -332,6 +327,11 @@ const ArticleDetailScreen = ({ route }) => {
       } catch (error) {
         // Ignore errors during cleanup
         console.log('[ArticleDetail] Error during TTS cleanup:', error);
+      }
+      // Clear ad timer
+      if (stickyAdTimerRef.current) {
+        clearTimeout(stickyAdTimerRef.current);
+        stickyAdTimerRef.current = null;
       }
     };
   }, [isTTSPlaying]);
@@ -902,7 +902,9 @@ const ArticleDetailScreen = ({ route }) => {
   const content = post.contentUnique || post.content || post.body || '';
   const synopsis = post.synopsis || null;
   const keyTakeaways = post.keyTakeaways || post.key_takeaways || null;
-  const pointOfView = post.pointOfView || post.point_of_view || null;
+  const pointOfView = currentLanguage === 'hindi' 
+    ? (post.pointOfViewHindi || post.point_of_view_hindi || post.pointOfViewUnique || post.pointOfView || post.point_of_view || null)
+    : (post.pointOfView || post.point_of_view || null);
   const faqs = post.faqs || null;
   const metaKeywords = post.metaKeywords || post.meta_keywords || null;
   // liveMedia is already computed earlier in the component
@@ -1060,26 +1062,6 @@ const ArticleDetailScreen = ({ route }) => {
           </View>
         ) : null}
 
-        {/* Ad After Image */}
-        {AD_CONFIG.storiesBanner && imageUrl && (
-          <View style={adsLoaded.afterImage ? styles.contentAdContainer : { height: 0, overflow: 'hidden' }}>
-            <BannerAd
-              unitId={getAdUnitId('banner', 'home')}
-              size={BannerAdSize.BANNER}
-              requestOptions={{
-                requestNonPersonalizedAdsOnly: false,
-              }}
-              onAdLoaded={() => {
-                console.log('[ArticleDetail] Ad after image loaded');
-                setAdsLoaded(prev => ({ ...prev, afterImage: true }));
-              }}
-              onAdFailedToLoad={(error) => {
-                console.log('[ArticleDetail] Ad after image failed:', error);
-                setAdsLoaded(prev => ({ ...prev, afterImage: false }));
-              }}
-            />
-          </View>
-        )}
 
         <View style={styles.content}>
           {/* Synopsis Section */}
@@ -1168,26 +1150,6 @@ const ArticleDetailScreen = ({ route }) => {
             </View>
           )}
 
-          {/* Ad After Synopsis */}
-          {AD_CONFIG.storiesBanner && synopsis && (
-            <View style={adsLoaded.afterSynopsis ? styles.contentAdContainer : { height: 0, overflow: 'hidden' }}>
-              <BannerAd
-                unitId={getAdUnitId('banner', 'stories')}
-                size={BannerAdSize.BANNER}
-                requestOptions={{
-                  requestNonPersonalizedAdsOnly: false,
-                }}
-                onAdLoaded={() => {
-                  console.log('[ArticleDetail] Ad after synopsis loaded');
-                  setAdsLoaded(prev => ({ ...prev, afterSynopsis: true }));
-                }}
-                onAdFailedToLoad={(error) => {
-                  console.log('[ArticleDetail] Ad after synopsis failed:', error);
-                  setAdsLoaded(prev => ({ ...prev, afterSynopsis: false }));
-                }}
-              />
-            </View>
-          )}
 
           {/* Key Takeaways Section */}
           {keyTakeaways && (Array.isArray(keyTakeaways) ? keyTakeaways.length > 0 : (typeof keyTakeaways === 'string' && keyTakeaways.trim())) && (
@@ -1277,26 +1239,6 @@ const ArticleDetailScreen = ({ route }) => {
             </View>
           )}
 
-          {/* Ad After Key Takeaways */}
-          {AD_CONFIG.storiesBanner && keyTakeaways && (
-            <View style={adsLoaded.afterKeyTakeaways ? styles.contentAdContainer : { height: 0, overflow: 'hidden' }}>
-              <BannerAd
-                unitId={getAdUnitId('banner', 'home')}
-                size={BannerAdSize.LARGE_BANNER}
-                requestOptions={{
-                  requestNonPersonalizedAdsOnly: false,
-                }}
-                onAdLoaded={() => {
-                  console.log('[ArticleDetail] Ad after key takeaways loaded');
-                  setAdsLoaded(prev => ({ ...prev, afterKeyTakeaways: true }));
-                }}
-                onAdFailedToLoad={(error) => {
-                  console.log('[ArticleDetail] Ad after key takeaways failed:', error);
-                  setAdsLoaded(prev => ({ ...prev, afterKeyTakeaways: false }));
-                }}
-              />
-            </View>
-          )}
 
           {/* Main Article Content */}
           {content && (
@@ -1403,33 +1345,14 @@ const ArticleDetailScreen = ({ route }) => {
           {/* Spacing after content and before Point of View */}
           {pointOfView && <View style={{ height: SPACING.xl }} />}
 
-          {/* Ad After Content */}
-          {AD_CONFIG.storiesBanner && content && (
-            <View style={adsLoaded.afterContent ? styles.contentAdContainer : { height: 0, overflow: 'hidden' }}>
-              <BannerAd
-                unitId={getAdUnitId('banner', 'stories')}
-                size={BannerAdSize.MEDIUM_RECTANGLE}
-                requestOptions={{
-                  requestNonPersonalizedAdsOnly: false,
-                }}
-                onAdLoaded={() => {
-                  console.log('[ArticleDetail] Ad after content loaded');
-                  setAdsLoaded(prev => ({ ...prev, afterContent: true }));
-                }}
-                onAdFailedToLoad={(error) => {
-                  console.log('[ArticleDetail] Ad after content failed:', error);
-                  setAdsLoaded(prev => ({ ...prev, afterContent: false }));
-                }}
-              />
-            </View>
-          )}
-
      
 
           {/* Point of View Section */}
           {pointOfView && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Point of View</Text>
+              <Text style={styles.sectionTitle}>
+                {ARTICLE_SECTIONS[currentLanguage]?.pointOfView || ARTICLE_SECTIONS.english.pointOfView}
+              </Text>
               <View style={styles.povContainer}>
                 {renderBoldText(
                   pointOfView.split(',').slice(1).join(',').trim().charAt(0).toUpperCase() + 
@@ -1446,26 +1369,6 @@ const ArticleDetailScreen = ({ route }) => {
             </View>
           )}
 
-          {/* Ad After Point of View */}
-          {AD_CONFIG.storiesBanner && pointOfView && (
-            <View style={adsLoaded.afterPointOfView ? styles.contentAdContainer : { height: 0, overflow: 'hidden' }}>
-              <BannerAd
-                unitId={getAdUnitId('banner', 'home')}
-                size={BannerAdSize.BANNER}
-                requestOptions={{
-                  requestNonPersonalizedAdsOnly: false,
-                }}
-                onAdLoaded={() => {
-                  console.log('[ArticleDetail] Ad after point of view loaded');
-                  setAdsLoaded(prev => ({ ...prev, afterPointOfView: true }));
-                }}
-                onAdFailedToLoad={(error) => {
-                  console.log('[ArticleDetail] Ad after point of view failed:', error);
-                  setAdsLoaded(prev => ({ ...prev, afterPointOfView: false }));
-                }}
-              />
-            </View>
-          )}
 
           {/* FAQs Section */}
           {faqs && Array.isArray(faqs) && faqs.length > 0 && (
@@ -1488,26 +1391,6 @@ const ArticleDetailScreen = ({ route }) => {
             </View>
           )}
 
-          {/* Ad After FAQs */}
-          {AD_CONFIG.storiesBanner && faqs && Array.isArray(faqs) && faqs.length > 0 && (
-            <View style={adsLoaded.afterFAQs ? styles.contentAdContainer : { height: 0, overflow: 'hidden' }}>
-              <BannerAd
-                unitId={getAdUnitId('banner', 'stories')}
-                size={BannerAdSize.LARGE_BANNER}
-                requestOptions={{
-                  requestNonPersonalizedAdsOnly: false,
-                }}
-                onAdLoaded={() => {
-                  console.log('[ArticleDetail] Ad after FAQs loaded');
-                  setAdsLoaded(prev => ({ ...prev, afterFAQs: true }));
-                }}
-                onAdFailedToLoad={(error) => {
-                  console.log('[ArticleDetail] Ad after FAQs failed:', error);
-                  setAdsLoaded(prev => ({ ...prev, afterFAQs: false }));
-                }}
-              />
-            </View>
-          )}
 
           {/* Tags Section */}
           {metaKeywords && (
@@ -1547,26 +1430,6 @@ const ArticleDetailScreen = ({ route }) => {
           )}
         </View>
 
-        {/* Inline Banner Ad before Related Articles */}
-        {AD_CONFIG.storiesBanner && (
-          <View style={adsLoaded.inline ? styles.inlineAdContainer : { height: 0, overflow: 'hidden' }}>
-            <BannerAd
-              unitId={getAdUnitId('banner', 'home')}
-              size={BannerAdSize.MEDIUM_RECTANGLE}
-              requestOptions={{
-                requestNonPersonalizedAdsOnly: false,
-              }}
-              onAdLoaded={() => {
-                console.log('[ArticleDetail] Inline banner ad loaded');
-                setAdsLoaded(prev => ({ ...prev, inline: true }));
-              }}
-              onAdFailedToLoad={(error) => {
-                console.log('[ArticleDetail] Inline banner ad failed to load:', error);
-                setAdsLoaded(prev => ({ ...prev, inline: false }));
-              }}
-            />
-          </View>
-        )}
 
         {relatedPosts && relatedPosts.length > 0 && (
           <View style={styles.relatedSection}>
@@ -1614,9 +1477,25 @@ const ArticleDetailScreen = ({ route }) => {
         />
       </TouchableOpacity>
 
-      {/* Sticky Bottom Banner Ad */}
-      {AD_CONFIG.storiesBanner && (
-        <View style={adsLoaded.sticky ? [styles.stickyAdContainer, { bottom: insets.bottom }] : { height: 0, overflow: 'hidden' }}>
+      {/* Sticky Bottom Banner Ad - Only one ad per page for Families compliance */}
+      {AD_CONFIG.storiesBanner && adsLoaded.sticky && (
+        <View style={[styles.stickyAdContainer, { bottom: insets.bottom }]}>
+          {stickyAdCanClose && (
+            <TouchableOpacity
+              style={styles.stickyAdCloseButton}
+              onPress={() => {
+                setAdsLoaded(prev => ({ ...prev, sticky: false }));
+                setStickyAdCanClose(false);
+                if (stickyAdTimerRef.current) {
+                  clearTimeout(stickyAdTimerRef.current);
+                  stickyAdTimerRef.current = null;
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="close" size={20} color={COLORS.text} />
+            </TouchableOpacity>
+          )}
           <BannerAd
             unitId={getAdUnitId('banner', 'home')}
             size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
@@ -1626,10 +1505,18 @@ const ArticleDetailScreen = ({ route }) => {
             onAdLoaded={() => {
               console.log('[ArticleDetail] Sticky bottom ad loaded');
               setAdsLoaded(prev => ({ ...prev, sticky: true }));
+              // Enable close button after 5 seconds (Families Policy requirement)
+              stickyAdTimerRef.current = setTimeout(() => {
+                setStickyAdCanClose(true);
+              }, 5000);
             }}
             onAdFailedToLoad={(error) => {
               console.log('[ArticleDetail] Sticky bottom ad failed:', error);
               setAdsLoaded(prev => ({ ...prev, sticky: false }));
+              if (stickyAdTimerRef.current) {
+                clearTimeout(stickyAdTimerRef.current);
+                stickyAdTimerRef.current = null;
+              }
             }}
           />
         </View>
@@ -1987,6 +1874,29 @@ const styles = StyleSheet.create({
       },
       android: {
         elevation: 4,
+      },
+    }),
+  },
+  stickyAdCloseButton: {
+    position: 'absolute',
+    top: SPACING.xs,
+    right: SPACING.xs,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: COLORS.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 3,
       },
     }),
   },

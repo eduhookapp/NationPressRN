@@ -27,16 +27,18 @@ const CategoryScreen = () => {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
 
-  // Insert ads into posts array after every 2 items
+  // Insert only ONE ad per screen for Families compliance (after 3rd item)
   const getDataWithAds = (postsArray) => {
     if (!AD_CONFIG.storiesBanner) return postsArray;
     
     const result = [];
+    let adInserted = false;
     postsArray.forEach((post, index) => {
       result.push(post);
-      // Add ad after every 2nd item
-      if ((index + 1) % 2 === 0) {
+      // Add only ONE ad after the 3rd item (Families Policy: only one ad per page)
+      if (!adInserted && (index + 1) === 3) {
         result.push({ isAd: true, id: `ad-${index}` });
+        adInserted = true;
       }
     });
     return result;

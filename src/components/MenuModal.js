@@ -94,7 +94,7 @@ const MenuModal = ({ visible, onClose, currentLanguage }) => {
     },
   ];
 
-  // Social links based on language
+  // Social links based on language - only Facebook, Twitter, and LinkedIn
   const socialLinks = currentLanguage === 'hindi' ? [
     {
       id: 'facebook',
@@ -105,17 +105,10 @@ const MenuModal = ({ visible, onClose, currentLanguage }) => {
     },
     {
       id: 'twitter',
-      name: 'Twitter',
+      name: 'X',
       icon: 'logo-twitter',
       url: 'https://x.com/rashtra_press',
       color: '#1DA1F2',
-    },
-    {
-      id: 'instagram',
-      name: 'Instagram',
-      icon: 'logo-instagram',
-      url: 'https://www.instagram.com/rashtra.press/',
-      color: '#E4405F',
     },
     {
       id: 'linkedin',
@@ -123,20 +116,6 @@ const MenuModal = ({ visible, onClose, currentLanguage }) => {
       icon: 'logo-linkedin',
       url: 'https://www.linkedin.com/company/nation-press/',
       color: '#0077B5',
-    },
-    {
-      id: 'youtube',
-      name: 'YouTube',
-      icon: 'logo-youtube',
-      url: 'https://www.youtube.com/@NationPress_NP',
-      color: '#FF0000',
-    },
-    {
-      id: 'pinterest',
-      name: 'Pinterest',
-      icon: 'logo-pinterest',
-      url: 'https://in.pinterest.com/nationpress/',
-      color: '#BD081C',
     },
   ] : [
     {
@@ -148,17 +127,10 @@ const MenuModal = ({ visible, onClose, currentLanguage }) => {
     },
     {
       id: 'twitter',
-      name: 'Twitter',
+      name: 'X',
       icon: 'logo-twitter',
       url: 'https://x.com/np_nationpress',
       color: '#1DA1F2',
-    },
-    {
-      id: 'instagram',
-      name: 'Instagram',
-      icon: 'logo-instagram',
-      url: 'https://www.instagram.com/nationpress_np/',
-      color: '#E4405F',
     },
     {
       id: 'linkedin',
@@ -166,20 +138,6 @@ const MenuModal = ({ visible, onClose, currentLanguage }) => {
       icon: 'logo-linkedin',
       url: 'https://www.linkedin.com/company/nation-press/',
       color: '#0077B5',
-    },
-    {
-      id: 'youtube',
-      name: 'YouTube',
-      icon: 'logo-youtube',
-      url: 'https://www.youtube.com/@NationPress_NP',
-      color: '#FF0000',
-    },
-    {
-      id: 'pinterest',
-      name: 'Pinterest',
-      icon: 'logo-pinterest',
-      url: 'https://in.pinterest.com/nationpress/',
-      color: '#BD081C',
     },
   ];
 
@@ -401,19 +359,21 @@ const styles = StyleSheet.create({
   },
   socialContainer: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
     paddingHorizontal: SPACING.lg,
-    gap: SPACING.md,
+    justifyContent: 'space-around',
+    gap: SPACING.sm,
   },
   socialButton: {
-    width: '30%',
+    flex: 1,
     alignItems: 'center',
     paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.sm,
+    paddingHorizontal: SPACING.xs,
     backgroundColor: COLORS.background,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
+    minWidth: 0,
   },
   socialLabel: {
     fontSize: FONT_SIZES.xs,
