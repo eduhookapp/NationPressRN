@@ -10,7 +10,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import { apiService } from '../services/api';
-import { COLORS, SPACING } from '../config/constants';
+import { COLORS, SPACING, LANGUAGES } from '../config/constants';
+import { storage } from '../utils/storage';
 import Header from '../components/Header';
 
 const WebStoryDetailScreen = ({ route }) => {
@@ -19,11 +20,40 @@ const WebStoryDetailScreen = ({ route }) => {
   const { slug, story: initialStory } = route?.params || {};
   const [story, setStory] = useState(initialStory || null);
   const [loadingStory, setLoadingStory] = useState(!initialStory);
+  const [currentLanguage, setCurrentLanguage] = useState('english');
 
   useEffect(() => {
+    // Load current language
+    const loadLanguage = async () => {
+      try {
+        const language = await storage.getLanguage();
+        setCurrentLanguage(language || 'english');
+      } catch (error) {
+        console.error('[WebStoryDetail] Error loading language:', error);
+      }
+    };
+    loadLanguage();
+
+    // Poll for language changes
+    const interval = setInterval(async () => {
+      try {
+        const language = await storage.getLanguage();
+        setCurrentLanguage(prev => {
+          if (prev !== language) {
+            return language || 'english';
+          }
+          return prev;
+        });
+      } catch (error) {
+        console.error('[WebStoryDetail] Error checking language:', error);
+      }
+    }, 500);
+
     if (!initialStory && slug) {
       loadStory();
     }
+
+    return () => clearInterval(interval);
   }, [slug, initialStory]);
 
   const loadStory = async () => {
@@ -78,13 +108,19 @@ const WebStoryDetailScreen = ({ route }) => {
     }
   };
 
-  // Build web story URL
-  // Format: https://www.nationpress.com/web-stories/{slug}
+  // Build web story URL based on current language
+  // Format: https://www.nationpress.com/web-stories/{slug} (English)
+  // Format: https://www.rashtrapress.com/web-stories/{slug} (Hindi)
   // Even if story data is not found, we can still try to open the URL using the slug
+  const getDomain = () => {
+    const language = LANGUAGES[currentLanguage] || LANGUAGES.english;
+    return language.domain;
+  };
+
   const storyUrl = story?.url || 
                    story?.storyUrl || 
                    story?.webStoryUrl || 
-                   (slug ? `https://www.nationpress.com/web-stories/${slug}` : null);
+                   (slug ? `${getDomain()}/web-stories/${slug}` : null);
 
   if (!storyUrl) {
     return (
@@ -107,6 +143,7 @@ const WebStoryDetailScreen = ({ route }) => {
         onBack={handleBack}
       />
       <WebView
+        key={`webstory-${currentLanguage}-${slug}`}
         source={{ uri: storyUrl }}
         style={[styles.webView, { marginBottom: insets.bottom }]}
         startInLoadingState={true}
@@ -121,11 +158,20 @@ const WebStoryDetailScreen = ({ route }) => {
         )}
         onError={(syntheticEvent) => {
           const { nativeEvent } = syntheticEvent;
-          console.error('WebView error: ', nativeEvent);
+          console.error('[WebStoryDetail] WebView error:', nativeEvent);
+          console.error('[WebStoryDetail] Failed URL:', storyUrl);
         }}
         onHttpError={(syntheticEvent) => {
           const { nativeEvent } = syntheticEvent;
-          console.error('WebView HTTP error: ', nativeEvent);
+          console.error('[WebStoryDetail] WebView HTTP error:', nativeEvent);
+          console.error('[WebStoryDetail] Failed URL:', storyUrl);
+        }}
+        onLoadStart={() => {
+          console.log('[WebStoryDetail] WebView loading URL:', storyUrl);
+          console.log('[WebStoryDetail] Current language:', currentLanguage);
+        }}
+        onLoadEnd={() => {
+          console.log('[WebStoryDetail] WebView loaded successfully');
         }}
       />
     </SafeAreaView>

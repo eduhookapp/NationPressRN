@@ -31,7 +31,7 @@ export const getApiBaseUrl = () => {
 
 export const CATEGORIES = [
   { id: 'all', name: 'Home', label: 'Home', labelHindi: 'होम' },
-  { id: 'national', name: 'National', label: 'National', labelHindi: 'राष्ट्रीय' },
+  { id: 'national', name: 'India', label: 'India', labelHindi: 'भारत' },
   { id: 'business', name: 'Business', label: 'Business', labelHindi: 'व्यापार' },
   { id: 'sports', name: 'Sports', label: 'Sports', labelHindi: 'खेल' },
   { id: 'entertainment', name: 'Entertainment', label: 'Entertainment', labelHindi: 'मनोरंजन' },

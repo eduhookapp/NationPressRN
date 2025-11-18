@@ -795,7 +795,7 @@ const ArticleDetailScreen = ({ route }) => {
     // Set default TTS settings (rate and pitch)
     try {
       if (Tts.setDefaultRate && typeof Tts.setDefaultRate === 'function') {
-        Tts.setDefaultRate(0.45);
+        Tts.setDefaultRate(0.5);
       }
       if (Tts.setDefaultPitch && typeof Tts.setDefaultPitch === 'function') {
         Tts.setDefaultPitch(1.0);

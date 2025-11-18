@@ -8,19 +8,23 @@ import {
   ActivityIndicator,
   Dimensions,
   Animated,
+  ScrollView,
+  TouchableOpacity,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { BannerAd, BannerAdSize, InterstitialAd, AdEventType } from 'react-native-google-mobile-ads';
+import Tts from 'react-native-tts';
 import { apiService } from '../services/api';
-import { CATEGORIES, CATEGORY_SUBMENU_ITEMS, COLORS, SPACING } from '../config/constants';
+import { CATEGORIES, CATEGORY_SUBMENU_ITEMS, COLORS, SPACING, FONT_SIZES } from '../config/constants';
 import { getAdUnitId, AD_CONFIG } from '../config/adsConfig';
 import { storage } from '../utils/storage';
 import NewsCard from '../components/NewsCard';
 import CategoryTab from '../components/CategoryTab';
 import Header from '../components/Header';
 import TagChips from '../components/TagChips';
+import { formatRelativeTime, getImageUrl, truncateText } from '../utils/dateUtils';
 
 const logo = require('../../assets/images/logo.png');
 const logoHindi = require('../../assets/images/logo-hindi.png');
@@ -37,15 +41,501 @@ const HomeScreen = () => {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [currentLanguage, setCurrentLanguage] = useState('english');
+  // Breaking news state
+  const [breakingNews, setBreakingNews] = useState([]);
+  const [loadingBreakingNews, setLoadingBreakingNews] = useState(false);
+  // Web stories state (for all supported categories)
+  const [webStories, setWebStories] = useState({});
+  const [loadingWebStories, setLoadingWebStories] = useState({});
   // Track which ads have loaded successfully
   const [adsLoaded, setAdsLoaded] = useState({});
+  // TTS state for breaking news
+  const [isBreakingNewsTTSPlaying, setIsBreakingNewsTTSPlaying] = useState(false);
+  const [currentBreakingNewsIndex, setCurrentBreakingNewsIndex] = useState(0);
+  // TTS state for category stories
+  const [isCategoryTTSPlaying, setIsCategoryTTSPlaying] = useState(false);
+  const [currentCategoryStoryIndex, setCurrentCategoryStoryIndex] = useState(0);
+  const breakingNewsTTSQueueRef = useRef([]);
+  const breakingNewsRef = useRef(breakingNews);
+  const isTTSPlayingRef = useRef(false);
+  const currentLanguageRef = useRef(currentLanguage);
+  const postsRef = useRef(posts);
+  const isCategoryTTSPlayingRef = useRef(false);
+  const insets = useSafeAreaInsets();
   const fadeAnim = React.useRef(new Animated.Value(1)).current;
   const scrollY = React.useRef(new Animated.Value(0)).current;
   const logoTranslateY = React.useRef(new Animated.Value(0)).current;
   const logoHeight = React.useRef(new Animated.Value(70)).current;
+  const rotateAnim = React.useRef(new Animated.Value(0)).current;
   
   // Interstitial ad ref
   const interstitialAdRef = useRef(null);
+
+  // Helper function to strip HTML tags
+  const stripHtml = (html) => {
+    if (!html) return '';
+    return html
+      .replace(/<[^>]*>/g, '') // Remove HTML tags
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+      .trim();
+  };
+
+  // Function to read a single breaking news item
+  const readBreakingNewsItem = (index) => {
+    if (!breakingNews || index >= breakingNews.length || !Tts) return;
+
+    const item = breakingNews[index];
+    const title = item.title || item.headline || '';
+    const synopsis = item.synopsis || item.short_description || '';
+    
+    let textToSpeak = '';
+    
+    // Add headline
+    if (title) {
+      textToSpeak += `${title}. `;
+    }
+    
+    // Add synopsis
+    if (synopsis) {
+      const cleanSynopsis = stripHtml(synopsis);
+      if (cleanSynopsis) {
+        textToSpeak += `${cleanSynopsis}. `;
+      }
+    }
+    
+    if (textToSpeak.trim()) {
+      try {
+        Tts.speak(textToSpeak.trim());
+        setCurrentBreakingNewsIndex(index);
+      } catch (error) {
+        console.error('[HomeScreen] Error starting TTS:', error);
+        setIsBreakingNewsTTSPlaying(false);
+      }
+    }
+  };
+
+  // Update refs when state changes
+  useEffect(() => {
+    breakingNewsRef.current = breakingNews;
+    // Stop TTS if breaking news changes while playing
+    if (isBreakingNewsTTSPlaying && Tts) {
+      try {
+        Tts.stop();
+        setIsBreakingNewsTTSPlaying(false);
+        setCurrentBreakingNewsIndex(0);
+      } catch (error) {
+        console.error('[HomeScreen] Error stopping TTS on breaking news change:', error);
+      }
+    }
+  }, [breakingNews]);
+
+  useEffect(() => {
+    isTTSPlayingRef.current = isBreakingNewsTTSPlaying;
+  }, [isBreakingNewsTTSPlaying]);
+
+  useEffect(() => {
+    currentLanguageRef.current = currentLanguage;
+  }, [currentLanguage]);
+
+  useEffect(() => {
+    postsRef.current = posts;
+  }, [posts]);
+
+  useEffect(() => {
+    isCategoryTTSPlayingRef.current = isCategoryTTSPlaying;
+  }, [isCategoryTTSPlaying]);
+
+  // Setup TTS event listeners for breaking news
+  useEffect(() => {
+    if (!Tts) {
+      console.warn('[HomeScreen] TTS module not available');
+      return;
+    }
+
+    const onTtsFinish = () => {
+      // Only handle if breaking news TTS is playing (not category TTS)
+      if (!isTTSPlayingRef.current || isCategoryTTSPlayingRef.current) {
+        return;
+      }
+      
+      // Move to next breaking news item
+      setCurrentBreakingNewsIndex(prev => {
+        const nextIndex = prev + 1;
+        const currentBreakingNews = breakingNewsRef.current;
+        const isPlaying = isTTSPlayingRef.current;
+        const currentLang = currentLanguageRef.current;
+        
+        if (nextIndex < currentBreakingNews.length && isPlaying && !isCategoryTTSPlayingRef.current) {
+          // Read next item
+          setTimeout(() => {
+            // Double check we're still playing breaking news TTS
+            if (!isTTSPlayingRef.current || isCategoryTTSPlayingRef.current) return;
+            
+            const item = currentBreakingNews[nextIndex];
+            const title = item.title || item.headline || '';
+            const synopsis = item.synopsis || item.short_description || '';
+            
+            let textToSpeak = '';
+            
+            if (title) {
+              textToSpeak += `${title}. `;
+            }
+            
+            if (synopsis) {
+              const cleanSynopsis = stripHtml(synopsis);
+              if (cleanSynopsis) {
+                textToSpeak += `${cleanSynopsis}. `;
+              }
+            }
+            
+            if (textToSpeak.trim()) {
+              try {
+                Tts.speak(textToSpeak.trim());
+              } catch (error) {
+                console.error('[HomeScreen] Error starting TTS:', error);
+                setIsBreakingNewsTTSPlaying(false);
+                return prev;
+              }
+            }
+          }, 500);
+          return nextIndex;
+        } else {
+          // Finished reading all items
+          setIsBreakingNewsTTSPlaying(false);
+          return 0;
+        }
+      });
+    };
+
+    const onTtsStart = () => {
+      setIsBreakingNewsTTSPlaying(true);
+    };
+
+    const onTtsCancel = () => {
+      setIsBreakingNewsTTSPlaying(false);
+      setCurrentBreakingNewsIndex(0);
+    };
+
+    const onTtsError = (error) => {
+      console.error('[HomeScreen] TTS Error:', error);
+      setIsBreakingNewsTTSPlaying(false);
+      setCurrentBreakingNewsIndex(0);
+    };
+
+    // Set default TTS settings
+    try {
+      if (Tts.setDefaultRate && typeof Tts.setDefaultRate === 'function') {
+        Tts.setDefaultRate(0.5);
+      }
+      if (Tts.setDefaultPitch && typeof Tts.setDefaultPitch === 'function') {
+        Tts.setDefaultPitch(1.0);
+      }
+    } catch (error) {
+      console.error('[HomeScreen] Error setting TTS defaults:', error);
+    }
+
+    // Add event listeners
+    if (Tts.addEventListener && typeof Tts.addEventListener === 'function') {
+      try {
+        Tts.addEventListener('tts-finish', onTtsFinish);
+        Tts.addEventListener('tts-start', onTtsStart);
+        Tts.addEventListener('tts-cancel', onTtsCancel);
+        Tts.addEventListener('tts-error', onTtsError);
+      } catch (error) {
+        console.error('[HomeScreen] Error adding TTS event listeners:', error);
+      }
+    }
+
+    return () => {
+      // Cleanup
+      try {
+        if (Tts.stop && typeof Tts.stop === 'function') {
+          Tts.stop();
+        }
+        if (Tts.removeEventListener && typeof Tts.removeEventListener === 'function') {
+          Tts.removeEventListener('tts-finish', onTtsFinish);
+          Tts.removeEventListener('tts-start', onTtsStart);
+          Tts.removeEventListener('tts-cancel', onTtsCancel);
+          Tts.removeEventListener('tts-error', onTtsError);
+        }
+      } catch (error) {
+        console.error('[HomeScreen] Error during TTS cleanup:', error);
+      }
+    };
+  }, []);
+
+  // Update TTS language when currentLanguage changes
+  useEffect(() => {
+    if (!currentLanguage || !Tts) return;
+    
+    try {
+      const ttsLanguage = currentLanguage === 'hindi' ? 'hi' : 'en-IN';
+      if (Tts.setDefaultLanguage && typeof Tts.setDefaultLanguage === 'function') {
+        Tts.setDefaultLanguage(ttsLanguage);
+      }
+    } catch (langError) {
+      console.warn('[HomeScreen] TTS language not supported, using fallback:', langError);
+      try {
+        const fallbackLanguage = currentLanguage === 'hindi' ? 'hi' : 'en-US';
+        if (Tts.setDefaultLanguage && typeof Tts.setDefaultLanguage === 'function') {
+          Tts.setDefaultLanguage(fallbackLanguage);
+        }
+      } catch (fallbackError) {
+        console.error('[HomeScreen] Error setting fallback TTS language:', fallbackError);
+      }
+    }
+  }, [currentLanguage]);
+
+  // Handle breaking news TTS play/pause
+  const handleBreakingNewsTTS = () => {
+    if (!Tts) {
+      alert('Text-to-speech is not available.');
+      return;
+    }
+
+    if (isBreakingNewsTTSPlaying) {
+      // Stop TTS
+      try {
+        Tts.stop();
+        setIsBreakingNewsTTSPlaying(false);
+        setCurrentBreakingNewsIndex(0);
+      } catch (error) {
+        console.error('[HomeScreen] Error stopping TTS:', error);
+      }
+    } else {
+      // Stop category TTS if playing
+      if (isCategoryTTSPlaying) {
+        try {
+          Tts.stop();
+          setIsCategoryTTSPlaying(false);
+          setCurrentCategoryStoryIndex(0);
+        } catch (error) {
+          console.error('[HomeScreen] Error stopping category TTS:', error);
+        }
+      }
+      // Start reading from the beginning
+      if (breakingNews.length === 0) {
+        alert('No breaking news available to read.');
+        return;
+      }
+      readBreakingNewsItem(0);
+    }
+  };
+
+  // Setup TTS event listeners for category stories
+  useEffect(() => {
+    if (!Tts) {
+      return;
+    }
+
+    const onCategoryTtsFinish = () => {
+      // Only handle if category TTS is playing (not breaking news)
+      if (!isCategoryTTSPlayingRef.current) {
+        return;
+      }
+      
+      setCurrentCategoryStoryIndex(prev => {
+        const nextIndex = prev + 1;
+        const currentPosts = postsRef.current;
+        const isPlaying = isCategoryTTSPlayingRef.current;
+        const currentLang = currentLanguageRef.current;
+        
+        // Get top 5 stories (excluding ads and web stories)
+        const topStories = currentPosts.filter(post => !post.isAd && !post.isWebStories).slice(0, 5);
+        
+        if (nextIndex < topStories.length && isPlaying) {
+          setTimeout(() => {
+            // Double check we're still playing category TTS
+            if (!isCategoryTTSPlayingRef.current) return;
+            
+            const item = topStories[nextIndex];
+            const title = item.title || item.headline || '';
+            const synopsis = item.synopsis || item.short_description || '';
+            
+            let textToSpeak = '';
+            
+            if (title) {
+              textToSpeak += `${title}. `;
+            }
+            
+            if (synopsis) {
+              const cleanSynopsis = stripHtml(synopsis);
+              if (cleanSynopsis) {
+                textToSpeak += `${cleanSynopsis}. `;
+              }
+            }
+            
+            if (textToSpeak.trim()) {
+              try {
+                Tts.speak(textToSpeak.trim());
+              } catch (error) {
+                console.error('[HomeScreen] Error starting category TTS:', error);
+                setIsCategoryTTSPlaying(false);
+                return prev;
+              }
+            }
+          }, 500);
+          return nextIndex;
+        } else {
+          setIsCategoryTTSPlaying(false);
+          return 0;
+        }
+      });
+    };
+
+    const onCategoryTtsStart = () => {
+      setIsCategoryTTSPlaying(true);
+    };
+
+    const onCategoryTtsCancel = () => {
+      setIsCategoryTTSPlaying(false);
+      setCurrentCategoryStoryIndex(0);
+    };
+
+    const onCategoryTtsError = (error) => {
+      console.error('[HomeScreen] Category TTS Error:', error);
+      setIsCategoryTTSPlaying(false);
+      setCurrentCategoryStoryIndex(0);
+    };
+
+    if (Tts.addEventListener && typeof Tts.addEventListener === 'function') {
+      try {
+        Tts.addEventListener('tts-finish', onCategoryTtsFinish);
+        Tts.addEventListener('tts-start', onCategoryTtsStart);
+        Tts.addEventListener('tts-cancel', onCategoryTtsCancel);
+        Tts.addEventListener('tts-error', onCategoryTtsError);
+      } catch (error) {
+        console.error('[HomeScreen] Error adding category TTS event listeners:', error);
+      }
+    }
+
+    return () => {
+      try {
+        if (Tts.removeEventListener && typeof Tts.removeEventListener === 'function') {
+          Tts.removeEventListener('tts-finish', onCategoryTtsFinish);
+          Tts.removeEventListener('tts-start', onCategoryTtsStart);
+          Tts.removeEventListener('tts-cancel', onCategoryTtsCancel);
+          Tts.removeEventListener('tts-error', onCategoryTtsError);
+        }
+      } catch (error) {
+        console.error('[HomeScreen] Error during category TTS cleanup:', error);
+      }
+    };
+  }, []);
+
+  // Function to read a category story
+  const readCategoryStory = (index) => {
+    if (!posts || !Tts) return;
+
+    // Get top 5 stories (excluding ads and web stories)
+    const topStories = posts.filter(post => !post.isAd && !post.isWebStories).slice(0, 5);
+    
+    if (index >= topStories.length) return;
+
+    const item = topStories[index];
+    const title = item.title || item.headline || '';
+    const synopsis = item.synopsis || item.short_description || '';
+    
+    let textToSpeak = '';
+    
+    if (title) {
+      textToSpeak += `${title}. `;
+    }
+    
+    if (synopsis) {
+      const cleanSynopsis = stripHtml(synopsis);
+      if (cleanSynopsis) {
+        textToSpeak += `${cleanSynopsis}. `;
+      }
+    }
+    
+    if (textToSpeak.trim()) {
+      try {
+        Tts.speak(textToSpeak.trim());
+        setCurrentCategoryStoryIndex(index);
+      } catch (error) {
+        console.error('[HomeScreen] Error starting category TTS:', error);
+        setIsCategoryTTSPlaying(false);
+      }
+    }
+  };
+
+  // Handle category TTS play/pause
+  const handleCategoryTTS = () => {
+    if (!Tts) {
+      alert('Text-to-speech is not available.');
+      return;
+    }
+
+    if (isCategoryTTSPlaying) {
+      // Stop TTS
+      try {
+        Tts.stop();
+        setIsCategoryTTSPlaying(false);
+        setCurrentCategoryStoryIndex(0);
+      } catch (error) {
+        console.error('[HomeScreen] Error stopping category TTS:', error);
+      }
+    } else {
+      // Stop breaking news TTS if playing
+      if (isBreakingNewsTTSPlaying) {
+        try {
+          Tts.stop();
+          setIsBreakingNewsTTSPlaying(false);
+          setCurrentBreakingNewsIndex(0);
+        } catch (error) {
+          console.error('[HomeScreen] Error stopping breaking news TTS:', error);
+        }
+      }
+      // Start reading from the beginning
+      const topStories = posts.filter(post => !post.isAd && !post.isWebStories).slice(0, 5);
+      if (topStories.length === 0) {
+        alert('No stories available to read.');
+        return;
+      }
+      readCategoryStory(0);
+    }
+  };
+
+  // Rotate interpolation for border animation
+  const rotateInterpolate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  // Animate rotating border for floating button
+  useEffect(() => {
+    const startRotation = () => {
+      rotateAnim.setValue(0);
+      const animation = Animated.loop(
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        { iterations: -1 }
+      );
+      animation.start();
+      return animation;
+    };
+    
+    // Start immediately
+    const animation = startRotation();
+    
+    return () => {
+      if (animation) {
+        animation.stop();
+      }
+      rotateAnim.stopAnimation();
+      rotateAnim.setValue(0);
+    };
+  }, []);
 
   // Load and setup interstitial ad
   useEffect(() => {
@@ -154,16 +644,31 @@ const HomeScreen = () => {
     return hindiTag; // Fallback to original if not found
   };
 
-  // Insert only ONE ad per screen for Families compliance (after 3rd item)
+  // Insert ads and web stories sections in the list
   const getDataWithAds = (postsArray) => {
-    if (!AD_CONFIG.storiesBanner) return postsArray;
-    
     const result = [];
     let adInserted = false;
+    let webStoriesInserted = false;
+    
     postsArray.forEach((post, index) => {
       result.push(post);
+      
+      // Add web stories section after 3rd item for national category
+      if (selectedCategory === 'national' && !webStoriesInserted && (index + 1) === 3) {
+        const nationalWebStories = webStories['national'] || [];
+        if (nationalWebStories.length > 0) {
+          result.push({ isWebStories: true, id: 'webstories-national', category: 'national' });
+          webStoriesInserted = true;
+        }
+      }
+      
       // Add only ONE ad after the 3rd item (Families Policy: only one ad per page)
-      if (!adInserted && (index + 1) === 3) {
+      // But only if web stories weren't inserted (to avoid too many sections)
+      if (AD_CONFIG.storiesBanner && !adInserted && (index + 1) === 3 && !webStoriesInserted) {
+        result.push({ isAd: true, id: `ad-${index}` });
+        adInserted = true;
+      } else if (AD_CONFIG.storiesBanner && !adInserted && (index + 1) === 4 && webStoriesInserted) {
+        // If web stories were inserted at position 3, add ad at position 4
         result.push({ isAd: true, id: `ad-${index}` });
         adInserted = true;
       }
@@ -184,10 +689,26 @@ const HomeScreen = () => {
       const result = await apiService.fetchPostsByCategory(category, limit, start);
 
       if (result.success) {
+        // Filter out breaking news items (top 2-3) from regular posts
+        // Only apply this filter when breaking news is shown (all or national category)
+        let filteredData = result.data;
+        if ((category === 'all' || category === 'national') && breakingNews.length > 0) {
+          // Get IDs of top 2-3 breaking news items
+          const breakingNewsIds = breakingNews.slice(0, 3).map(item => 
+            item.id || item.shortSlug || item.slugUnique || item.slug
+          );
+          
+          // Filter out posts that match breaking news IDs
+          filteredData = result.data.filter(post => {
+            const postId = post.id || post.shortSlug || post.slugUnique || post.slug;
+            return !breakingNewsIds.includes(postId);
+          });
+        }
+
         if (append) {
-          setPosts(prev => [...prev, ...result.data]);
+          setPosts(prev => [...prev, ...filteredData]);
         } else {
-          setPosts(result.data);
+          setPosts(filteredData);
         }
         setHasMore(result.data.length === limit && result.total > start + limit);
       } else {
@@ -201,6 +722,91 @@ const HomeScreen = () => {
       setLoadingMore(false);
     }
   };
+
+  // Load breaking news
+  const loadBreakingNews = async (category = selectedCategory) => {
+    try {
+      setLoadingBreakingNews(true);
+      const result = await apiService.fetchBreakingNews(10, category);
+      if (result.success) {
+        setBreakingNews(result.data);
+      } else {
+        console.error('Error loading breaking news:', result.error);
+        setBreakingNews([]);
+      }
+    } catch (error) {
+      console.error('Error in loadBreakingNews:', error);
+      setBreakingNews([]);
+    } finally {
+      setLoadingBreakingNews(false);
+    }
+  };
+
+  // Load breaking news on mount and when language or category changes
+  // Only load for 'all' (Home) and 'national' (India) categories
+  useEffect(() => {
+    // Clear breaking news when language changes to ensure fresh data
+    setBreakingNews([]);
+    
+    if (selectedCategory === 'all' || selectedCategory === 'national') {
+      // Small delay to ensure API base URL is updated
+      const timer = setTimeout(async () => {
+        await loadBreakingNews(selectedCategory);
+        // Reload posts after breaking news loads to filter out duplicates
+        if (selectedCategory === 'all' || selectedCategory === 'national') {
+          await loadPosts(selectedCategory, 0, false);
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [currentLanguage, selectedCategory]);
+
+  // Load web stories for all supported categories
+  const loadWebStories = async (category) => {
+    try {
+      setLoadingWebStories(prev => ({ ...prev, [category]: true }));
+      const result = await apiService.fetchWebStories(10, category);
+      if (result.success) {
+        setWebStories(prev => ({ ...prev, [category]: result.data }));
+      } else {
+        console.error(`Error loading web stories for ${category}:`, result.error);
+        setWebStories(prev => ({ ...prev, [category]: [] }));
+      }
+    } catch (error) {
+      console.error(`Error in loadWebStories for ${category}:`, error);
+      setWebStories(prev => ({ ...prev, [category]: [] }));
+    } finally {
+      setLoadingWebStories(prev => ({ ...prev, [category]: false }));
+    }
+  };
+
+  // Load web stories when a supported category is selected
+  // Supported categories: entertainment, sports, international, national
+  useEffect(() => {
+    // Clear web stories when language changes to ensure fresh data
+    setWebStories({});
+    
+    // Categories that have web stories available
+    const webStoryCategories = ['entertainment', 'sports', 'international', 'national'];
+    
+    if (webStoryCategories.includes(selectedCategory)) {
+      // Small delay to ensure API base URL is updated
+      const timer = setTimeout(() => {
+        loadWebStories(selectedCategory);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [currentLanguage, selectedCategory]);
+  
+  // Also load national web stories when in national or all category (for inline display)
+  useEffect(() => {
+    if (selectedCategory === 'national' || selectedCategory === 'all') {
+      const timer = setTimeout(() => {
+        loadWebStories('national');
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [currentLanguage, selectedCategory]);
 
   // Reload posts when category OR language changes
   useEffect(() => {
@@ -223,14 +829,29 @@ const HomeScreen = () => {
     apiService.clearCache();
     
     // Load new posts
+    // Note: loadPosts will use breakingNews from state, so we need to ensure breaking news is loaded first
     const loadData = async () => {
-      await loadPosts(selectedCategory, 0, false);
-      // Fade in new content when loaded
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
+      // If breaking news should be shown, wait a bit for it to load
+      if (selectedCategory === 'all' || selectedCategory === 'national') {
+        // Small delay to ensure breaking news is loaded
+        setTimeout(async () => {
+          await loadPosts(selectedCategory, 0, false);
+          // Fade in new content when loaded
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 200,
+            useNativeDriver: true,
+          }).start();
+        }, 200);
+      } else {
+        await loadPosts(selectedCategory, 0, false);
+        // Fade in new content when loaded
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }).start();
+      }
     };
     
     loadData();
@@ -241,6 +862,14 @@ const HomeScreen = () => {
     setPage(0);
     setHasMore(true);
     loadPosts(selectedCategory, 0, false);
+    if (selectedCategory === 'all' || selectedCategory === 'national') {
+      loadBreakingNews(selectedCategory);
+    }
+    // Reload web stories if applicable
+    const webStoryCategories = ['entertainment', 'sports', 'international', 'national'];
+    if (webStoryCategories.includes(selectedCategory)) {
+      loadWebStories(selectedCategory);
+    }
   };
 
   const handleLoadMore = () => {
@@ -365,7 +994,93 @@ const HomeScreen = () => {
     });
   };
 
+  const handleWebStoryPress = (story) => {
+    const slug = story.slug || story.slugUnique || story.shortSlug;
+    if (slug) {
+      try {
+        router.push({
+          pathname: '/web-story/[slug]',
+          params: { slug, story: JSON.stringify(story) },
+        });
+      } catch (error) {
+        console.error('[HomeScreen] Error navigating to web story:', error);
+        // Fallback: try again without story data
+        try {
+          router.push({
+            pathname: '/web-story/[slug]',
+            params: { slug },
+          });
+        } catch (fallbackError) {
+          console.error('[HomeScreen] Fallback navigation also failed:', fallbackError);
+        }
+      }
+    }
+  };
+
   const renderItem = ({ item, index }) => {
+    // Render web stories section
+    if (item.isWebStories) {
+      const categoryStories = webStories[item.category] || [];
+      if (categoryStories.length === 0) return null;
+      
+      return (
+        <View style={styles.webStoriesContainer}>
+          <View style={styles.webStoriesHeader}>
+            <View style={styles.webStoriesLabelContainer}>
+              <View style={styles.webStoriesPulse} />
+              <Text style={styles.webStoriesLabel}>WEB STORIES</Text>
+            </View>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.webStoriesScrollContent}
+            nestedScrollEnabled={true}
+          >
+            {categoryStories.map((story, storyIndex) => {
+              const imageUrl = getImageUrl(story.featuredImage || story.featured_image);
+              const title = story.title || story.headline || '';
+              
+              return (
+                <TouchableOpacity
+                  key={`webstory-${item.category}-${story.id || storyIndex}`}
+                  style={styles.webStoryItem}
+                  onPress={() => handleWebStoryPress(story)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.webStoryImageContainer}>
+                    {imageUrl ? (
+                      <Image
+                        source={{ uri: imageUrl }}
+                        style={styles.webStoryImage}
+                        contentFit="cover"
+                        transition={200}
+                      />
+                    ) : (
+                      <View style={[styles.webStoryImage, styles.webStoryPlaceholder]} />
+                    )}
+                    <View style={styles.webStoryPlayButton}>
+                      <View style={styles.webStoryPlayIcon}>
+                        <Text style={styles.webStoryPlayText}>▶</Text>
+                      </View>
+                    </View>
+                  </View>
+                  <View style={styles.webStoryContent}>
+                    <Text style={styles.webStoryTitle} numberOfLines={2}>
+                      {title}
+                    </Text>
+                    <Text style={styles.webStoryTime}>
+                      {formatRelativeTime(story.storyAt || story.story_at || story.publishedAt)}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      );
+    }
+    
     // Render ad
     if (item.isAd) {
       const adId = item.id;
@@ -493,12 +1208,25 @@ const HomeScreen = () => {
             }
             // Clear cache when language changes
             apiService.clearCache();
+            // Clear breaking news to ensure fresh data
+            setBreakingNews([]);
+            // Clear web stories to ensure fresh data
+            setWebStories({});
             // Reset state and reload data
             setPage(0);
             setHasMore(true);
             setPosts([]);
             setLoading(true);
             await loadPosts(selectedCategory, 0, false);
+            // Reload breaking news if applicable
+            if (selectedCategory === 'all' || selectedCategory === 'national') {
+              await loadBreakingNews(selectedCategory);
+            }
+            // Reload web stories if applicable
+            const webStoryCategories = ['entertainment', 'sports', 'international', 'national'];
+            if (webStoryCategories.includes(selectedCategory)) {
+              loadWebStories(selectedCategory);
+            }
           }}
         />
         <CategoryTab
@@ -517,7 +1245,11 @@ const HomeScreen = () => {
           <FlatList
             data={getDataWithAds(posts)}
             renderItem={renderItem}
-            keyExtractor={(item, index) => item.isAd ? item.id : `post-${item.id || item.shortSlug || index}`}
+            keyExtractor={(item, index) => {
+              if (item.isAd) return item.id;
+              if (item.isWebStories) return item.id;
+              return `post-${item.id || item.shortSlug || index}`;
+            }}
             contentContainerStyle={styles.listContent}
             refreshControl={
               <RefreshControl
@@ -530,6 +1262,135 @@ const HomeScreen = () => {
             scrollEventThrottle={16}
             onEndReached={handleLoadMore}
             onEndReachedThreshold={0.5}
+            ListHeaderComponent={
+              <>
+                {/* Breaking News Section - only show in Home (all) and India (national) */}
+                {(selectedCategory === 'all' || selectedCategory === 'national') && breakingNews.length > 0 ? (
+                  <View style={styles.breakingNewsContainer}>
+                    <View style={styles.breakingNewsHeader}>
+                      <View style={styles.breakingNewsLabelContainer}>
+                        <View style={styles.breakingNewsPulse} />
+                        <Text style={styles.breakingNewsLabel}>BREAKING NEWS</Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={handleBreakingNewsTTS}
+                        style={styles.breakingNewsTTSButton}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.breakingNewsTTSButtonIcon}>
+                          {isBreakingNewsTTSPlaying ? '⏸' : '▶'}
+                        </Text>
+                        <Text style={styles.breakingNewsTTSButtonText}>
+                          {isBreakingNewsTTSPlaying 
+                            ? (currentLanguage === 'hindi' ? 'रोकें' : 'Stop')
+                            : (currentLanguage === 'hindi' ? 'मुझे पढ़ें' : 'Read to me')
+                          }
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.breakingNewsScrollContent}
+                      nestedScrollEnabled={true}
+                    >
+                      {breakingNews.map((item, index) => {
+                        const imageUrl = getImageUrl(item.banner || item.featuredImage || item.featured_image);
+                        const title = item.title || item.headline || '';
+                        const slug = item.shortSlug || item.slugUnique || item.slug;
+                        
+                        return (
+                          <TouchableOpacity
+                            key={`breaking-${item.id || index}`}
+                            style={styles.breakingNewsItem}
+                            onPress={() => handlePostPress(item)}
+                            activeOpacity={0.8}
+                          >
+                            {imageUrl ? (
+                              <Image
+                                source={{ uri: imageUrl }}
+                                style={styles.breakingNewsImage}
+                                contentFit="cover"
+                                transition={200}
+                              />
+                            ) : (
+                              <View style={[styles.breakingNewsImage, styles.breakingNewsPlaceholder]} />
+                            )}
+                            <View style={styles.breakingNewsOverlay} />
+                            <View style={styles.breakingNewsContent}>
+                              <Text style={styles.breakingNewsTitle} numberOfLines={3}>
+                                {title}
+                              </Text>
+                              <Text style={styles.breakingNewsTime}>
+                                {formatRelativeTime(item.storyAt || item.story_at || item.publishedAt)}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                ) : null}
+                {/* Web Stories Section - show in respective category tabs (except national which shows inline) */}
+                {['entertainment', 'sports', 'international'].includes(selectedCategory) && 
+                 webStories[selectedCategory] && webStories[selectedCategory].length > 0 ? (
+                  <View style={styles.webStoriesContainer}>
+                    <View style={styles.webStoriesHeader}>
+                      <View style={styles.webStoriesLabelContainer}>
+                        <View style={styles.webStoriesPulse} />
+                        <Text style={styles.webStoriesLabel}>WEB STORIES</Text>
+                      </View>
+                    </View>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.webStoriesScrollContent}
+                      nestedScrollEnabled={true}
+                    >
+                      {webStories[selectedCategory].map((item, index) => {
+                        const imageUrl = getImageUrl(item.featuredImage || item.featured_image);
+                        const title = item.title || item.headline || '';
+                        
+                        return (
+                          <TouchableOpacity
+                            key={`webstory-${selectedCategory}-${item.id || index}`}
+                            style={styles.webStoryItem}
+                            onPress={() => handleWebStoryPress(item)}
+                            activeOpacity={0.8}
+                          >
+                            <View style={styles.webStoryImageContainer}>
+                              {imageUrl ? (
+                                <Image
+                                  source={{ uri: imageUrl }}
+                                  style={styles.webStoryImage}
+                                  contentFit="cover"
+                                  transition={200}
+                                />
+                              ) : (
+                                <View style={[styles.webStoryImage, styles.webStoryPlaceholder]} />
+                              )}
+                              <View style={styles.webStoryPlayButton}>
+                                <View style={styles.webStoryPlayIcon}>
+                                  <Text style={styles.webStoryPlayText}>▶</Text>
+                                </View>
+                              </View>
+                            </View>
+                            <View style={styles.webStoryContent}>
+                              <Text style={styles.webStoryTitle} numberOfLines={2}>
+                                {title}
+                              </Text>
+                              <Text style={styles.webStoryTime}>
+                                {formatRelativeTime(item.storyAt || item.story_at || item.publishedAt)}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                ) : null}
+              </>
+            }
             ListFooterComponent={renderFooter}
             ListEmptyComponent={
               !loading ? (
@@ -541,6 +1402,41 @@ const HomeScreen = () => {
           />
         </Animated.View>
       )}
+      {/* Floating "Read to me" button for category tabs (not for Home/India) */}
+      {selectedCategory !== 'all' && selectedCategory !== 'national' && posts.length > 0 && (
+        <Animated.View
+          style={[
+            styles.floatingCategoryTTSButtonContainer,
+            { bottom: 200 + insets.bottom },
+          ]}
+        >
+          <Animated.View
+            style={[
+              styles.floatingCategoryTTSButtonBorder,
+              {
+                transform: [{ rotate: rotateInterpolate }],
+              },
+            ]}
+          />
+          <TouchableOpacity
+            style={styles.floatingCategoryTTSButton}
+            onPress={handleCategoryTTS}
+            activeOpacity={0.8}
+          >
+            <View style={styles.floatingCategoryTTSButtonContent}>
+              <Text style={styles.floatingCategoryTTSButtonIcon}>
+                {isCategoryTTSPlaying ? '⏸' : '▶'}
+              </Text>
+              <Text style={styles.floatingCategoryTTSButtonText} numberOfLines={2}>
+                {isCategoryTTSPlaying 
+                  ? (currentLanguage === 'hindi' ? 'रोकें' : 'Stop')
+                  : (currentLanguage === 'hindi' ? 'मुझे\nपढ़ें' : 'Read\nto me')
+                }
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 };
@@ -549,6 +1445,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.surface,
+    overflow: 'visible',
   },
   logoWrapper: {
     overflow: 'hidden',
@@ -597,6 +1494,274 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
     marginVertical: SPACING.sm,
     borderRadius: 8,
+  },
+  breakingNewsContainer: {
+    backgroundColor: '#1a0000',
+    borderTopWidth: 2,
+    borderBottomWidth: 2,
+    borderTopColor: '#dc3545',
+    borderBottomColor: '#dc3545',
+    paddingVertical: SPACING.sm,
+    marginBottom: SPACING.md,
+    marginLeft: -SPACING.md,
+    marginRight: -SPACING.md,
+  },
+  breakingNewsHeader: {
+    paddingLeft: SPACING.xl,
+    paddingRight: SPACING.xl,
+    paddingBottom: SPACING.xs,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  breakingNewsLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  breakingNewsTTSButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  breakingNewsTTSButtonIcon: {
+    fontSize: 14,
+    color: '#ffffff',
+    marginRight: SPACING.xs,
+  },
+  breakingNewsTTSButtonText: {
+    fontSize: FONT_SIZES.xs,
+    color: '#ffffff',
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  breakingNewsPulse: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#dc3545',
+    marginRight: SPACING.xs,
+  },
+  breakingNewsLabel: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '900',
+    color: '#ffffff',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  breakingNewsScrollContent: {
+    paddingLeft: SPACING.xl,
+    paddingRight: SPACING.md,
+    paddingVertical: SPACING.xs,
+  },
+  breakingNewsItemFirst: {
+    marginLeft: 0,
+  },
+  breakingNewsItem: {
+    width: 280,
+    height: 180,
+    marginRight: SPACING.md,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: COLORS.surface,
+    position: 'relative',
+  },
+  breakingNewsItemFirst: {
+    marginLeft: 0,
+  },
+  breakingNewsItemLast: {
+    marginRight: SPACING.md,
+  },
+  breakingNewsImage: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+  },
+  breakingNewsPlaceholder: {
+    backgroundColor: COLORS.surface,
+  },
+  breakingNewsOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '60%',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  breakingNewsContent: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: SPACING.md,
+    paddingTop: SPACING.lg,
+  },
+  breakingNewsTitle: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: SPACING.xs,
+    lineHeight: 20,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  breakingNewsTime: {
+    fontSize: FONT_SIZES.xs,
+    color: '#ffcccc',
+    fontWeight: '600',
+  },
+  webStoriesContainer: {
+    backgroundColor: '#1a0000',
+    borderTopWidth: 2,
+    borderBottomWidth: 2,
+    borderTopColor: '#dc3545',
+    borderBottomColor: '#dc3545',
+    paddingVertical: SPACING.sm,
+    marginBottom: SPACING.md,
+    marginLeft: -SPACING.md,
+    marginRight: -SPACING.md,
+    marginTop: SPACING.md,
+  },
+  webStoriesHeader: {
+    paddingLeft: SPACING.xl,
+    paddingBottom: SPACING.xs,
+  },
+  webStoriesLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  webStoriesPulse: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#dc3545',
+    marginRight: SPACING.xs,
+  },
+  webStoriesLabel: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '900',
+    color: '#ffffff',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  webStoriesScrollContent: {
+    paddingLeft: SPACING.xl,
+    paddingRight: SPACING.md,
+    paddingVertical: SPACING.xs,
+  },
+  webStoryItem: {
+    width: 160,
+    marginRight: SPACING.md,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: COLORS.background,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  webStoryImageContainer: {
+    width: '100%',
+    height: 200,
+    position: 'relative',
+  },
+  webStoryImage: {
+    width: '100%',
+    height: '100%',
+  },
+  webStoryPlaceholder: {
+    backgroundColor: COLORS.surface,
+  },
+  webStoryPlayButton: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  webStoryPlayIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  webStoryPlayText: {
+    color: '#ffffff',
+    fontSize: 20,
+    marginLeft: 3,
+  },
+  webStoryContent: {
+    padding: SPACING.sm,
+  },
+  webStoryTitle: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: SPACING.xs,
+    lineHeight: 18,
+  },
+  webStoryTime: {
+    fontSize: FONT_SIZES.xs,
+    color: COLORS.textLight,
+  },
+  floatingCategoryTTSButtonContainer: {
+    position: 'absolute',
+    right: SPACING.md,
+    width: 70,
+    height: 70,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  floatingCategoryTTSButtonBorder: {
+    position: 'absolute',
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    borderWidth: 3,
+    borderColor: COLORS.primary,
+    borderTopColor: 'transparent',
+    borderRightColor: 'transparent',
+  },
+  floatingCategoryTTSButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  floatingCategoryTTSButtonContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  floatingCategoryTTSButtonIcon: {
+    fontSize: 16,
+    color: COLORS.background,
+    marginBottom: 2,
+  },
+  floatingCategoryTTSButtonText: {
+    fontSize: FONT_SIZES.xs,
+    color: COLORS.background,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    textAlign: 'center',
+    lineHeight: 12,
   },
 });
 

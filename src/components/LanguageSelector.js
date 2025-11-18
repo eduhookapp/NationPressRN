@@ -111,6 +111,16 @@ const LanguageSelector = ({ onLanguageChange }) => {
 
   const currentLanguage = LANGUAGES[selectedLanguage] || LANGUAGES[DEFAULT_LANGUAGE];
 
+  // Get icon for selected language
+  const getSelectedLanguageIcon = () => {
+    if (selectedLanguage === 'english') {
+      return 'globe-outline';
+    } else if (selectedLanguage === 'hindi') {
+      return 'book-outline';
+    }
+    return 'language-outline';
+  };
+
   return (
     <>
       <TouchableOpacity
@@ -118,7 +128,7 @@ const LanguageSelector = ({ onLanguageChange }) => {
         onPress={() => setModalVisible(true)}
         activeOpacity={0.7}
       >
-        <Ionicons name="language-outline" size={20} color={COLORS.text} />
+        <Ionicons name={getSelectedLanguageIcon()} size={20} color={COLORS.text} />
         <Text style={styles.selectorText}>{currentLanguage.label}</Text>
         <Ionicons name="chevron-down-outline" size={16} color={COLORS.textLight} />
       </TouchableOpacity>
@@ -144,24 +154,42 @@ const LanguageSelector = ({ onLanguageChange }) => {
             <FlatList
               data={Object.values(LANGUAGES)}
               keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.languageItem,
-                    selectedLanguage === item.id && styles.languageItemSelected
-                  ]}
-                  onPress={() => handleLanguageSelect(item.id)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.languageItemContent}>
-                    <Text style={styles.languageName}>{item.name}</Text>
-                    <Text style={styles.languageLabel}>{item.label}</Text>
-                  </View>
-                  {selectedLanguage === item.id && (
-                    <Ionicons name="checkmark" size={20} color={COLORS.primary} />
-                  )}
-                </TouchableOpacity>
-              )}
+              renderItem={({ item }) => {
+                // Get appropriate icon for each language
+                const getLanguageIcon = (languageId) => {
+                  if (languageId === 'english') {
+                    return 'globe-outline'; // English - globe icon
+                  } else if (languageId === 'hindi') {
+                    return 'book-outline'; // Hindi - book icon
+                  }
+                  return 'language-outline';
+                };
+
+                return (
+                  <TouchableOpacity
+                    style={[
+                      styles.languageItem,
+                      selectedLanguage === item.id && styles.languageItemSelected
+                    ]}
+                    onPress={() => handleLanguageSelect(item.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons 
+                      name={getLanguageIcon(item.id)} 
+                      size={24} 
+                      color={selectedLanguage === item.id ? COLORS.primary : COLORS.text} 
+                      style={styles.languageIcon}
+                    />
+                    <View style={styles.languageItemContent}>
+                      <Text style={styles.languageName}>{item.name}</Text>
+                      <Text style={styles.languageLabel}>{item.label}</Text>
+                    </View>
+                    {selectedLanguage === item.id && (
+                      <Ionicons name="checkmark" size={20} color={COLORS.primary} />
+                    )}
+                  </TouchableOpacity>
+                );
+              }}
             />
           </SafeAreaView>
         </View>
@@ -221,6 +249,9 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
+  },
+  languageIcon: {
+    marginRight: SPACING.md,
   },
   languageItemSelected: {
     backgroundColor: COLORS.surface,

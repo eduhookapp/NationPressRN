@@ -67,6 +67,196 @@ export const apiService = {
   clearCache() {
     clearCache();
   },
+  // Fetch all web stories without category filter
+  async fetchAllWebStories(limit = 50, start = 0) {
+    try {
+      const apiBaseUrl = getApiBaseUrl();
+      const cacheKey = `webstories:all:${limit}:${start}:${apiBaseUrl}`;
+      const cached = getCache(cacheKey);
+      if (cached) return cached;
+
+      const url = buildApiUrl('web-stories', {
+        'populate[0]': 'featured_image',
+        'sort[0]': 'story_at:desc',
+        'pagination[limit]': limit,
+        'pagination[start]': start
+      });
+
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('[API] 🌐 Fetching ALL web stories (no category filter)...');
+      console.log('[API] 🔗 Full URL:', url);
+      console.log('[API] 🌐 API Base URL:', apiBaseUrl);
+      console.log('═══════════════════════════════════════════════════════════');
+
+      const response = await fetch(url);
+      console.log('[API] 📡 Response status:', response.status, response.statusText);
+      
+      const data = await response.json();
+      console.log('[API] 📊 Response data:', {
+        hasData: !!data?.data,
+        dataLength: data?.data?.length || 0,
+        total: data?.meta?.pagination?.total || 0
+      });
+
+      // Normalize Strapi v4 data structure
+      const normalizedData = (data?.data || []).map(item => {
+        const attrs = item.attributes || item;
+        return {
+          ...attrs,
+          id: item.id || attrs.id
+        };
+      });
+
+      const result = {
+        success: true,
+        data: normalizedData,
+        total: data?.meta?.pagination?.total || 0
+      };
+
+      setCache(cacheKey, result);
+      return result;
+    } catch (error) {
+      console.error('Error fetching all web stories:', error);
+      return {
+        success: false,
+        error: error.message,
+        data: [],
+        total: 0
+      };
+    }
+  },
+
+  // Fetch web stories by category
+  // Supported categories: POLITICS, CINEMA, INTERNATIONAL, SPORTS, ENTERTAINMENT, NATIONAL
+  async fetchWebStories(limit = 10, category = 'ENTERTAINMENT', start = 0) {
+    try {
+      // Include API base URL in cache key to differentiate between languages
+      const apiBaseUrl = getApiBaseUrl();
+      const cacheKey = `webstories:${category}:${limit}:${start}:${apiBaseUrl}`;
+      const cached = getCache(cacheKey);
+      if (cached) return cached;
+
+      // Map app category names to Strapi category format
+      const categoryMap = {
+        'entertainment': 'ENTERTAINMENT',
+        'politics': 'POLITICS',
+        'cinema': 'CINEMA',
+        'international': 'INTERNATIONAL',
+        'sports': 'SPORTS',
+        'national': 'NATIONAL',
+      };
+
+      const strapiCategory = categoryMap[category.toLowerCase()] || category.toUpperCase();
+
+      const url = buildApiUrl('web-stories', {
+        'filters[category][$eq]': strapiCategory,
+        'populate[0]': 'featured_image',
+        'sort[0]': 'story_at:desc',
+        'pagination[limit]': limit,
+        'pagination[start]': start
+      });
+
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('[API] 🌐 Fetching web stories...');
+      console.log('[API] 📍 Category:', category, '→ Strapi:', strapiCategory);
+      console.log('[API] 🔗 Full URL:', url);
+      console.log('[API] 🌐 API Base URL:', apiBaseUrl);
+      console.log('═══════════════════════════════════════════════════════════');
+
+      const response = await fetch(url);
+      console.log('[API] 📡 Response status:', response.status, response.statusText);
+      
+      const data = await response.json();
+      console.log('[API] 📊 Response data:', {
+        hasData: !!data?.data,
+        dataLength: data?.data?.length || 0,
+        total: data?.meta?.pagination?.total || 0
+      });
+
+      // Normalize Strapi v4 data structure
+      const normalizedData = (data?.data || []).map(item => {
+        const attrs = item.attributes || item;
+        return {
+          ...attrs,
+          id: item.id || attrs.id
+        };
+      });
+
+      const result = {
+        success: true,
+        data: normalizedData,
+        total: data?.meta?.pagination?.total || 0
+      };
+
+      setCache(cacheKey, result);
+      return result;
+    } catch (error) {
+      console.error(`Error fetching web stories for ${category}:`, error);
+      return {
+        success: false,
+        error: error.message,
+        data: [],
+        total: 0
+      };
+    }
+  },
+
+  // Fetch breaking news (where criticality = breaking)
+  async fetchBreakingNews(limit = 10, category = 'all') {
+    try {
+      // Include API base URL in cache key to differentiate between languages
+      const apiBaseUrl = getApiBaseUrl();
+      const cacheKey = `breaking:${category}:${limit}:${apiBaseUrl}`;
+      const cached = getCache(cacheKey);
+      if (cached) return cached;
+
+      const params = {
+        'filters[criticality][$eq]': 'breaking',
+        'populate[0]': 'banner',
+        'populate[1]': 'featured_image',
+        'sort[0]': 'story_at:desc',
+        'pagination[limit]': limit,
+        'pagination[start]': 0
+      };
+
+      // Add category filter only if category is not 'all'
+      if (category && category !== 'all' && category !== 'home') {
+        params['filters[category][$eq]'] = category.toUpperCase();
+      }
+
+      const url = buildApiUrl('posts', params);
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      // Normalize Strapi v4 data structure
+      const normalizedData = (data?.data || []).map(item => {
+        const attrs = item.attributes || item;
+        return {
+          ...attrs,
+          id: item.id || attrs.id
+        };
+      });
+
+      const result = {
+        success: true,
+        data: normalizedData,
+        total: data?.meta?.pagination?.total || 0
+      };
+
+      setCache(cacheKey, result);
+      return result;
+    } catch (error) {
+      console.error('Error fetching breaking news:', error);
+      return {
+        success: false,
+        error: error.message,
+        data: [],
+        total: 0
+      };
+    }
+  },
+
   // Fetch posts by category
   async fetchPostsByCategory(category, limit = 12, start = 0) {
     try {
