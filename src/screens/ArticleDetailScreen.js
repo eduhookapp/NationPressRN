@@ -1,33 +1,32 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-  TouchableOpacity,
-  Linking,
-  Dimensions,
-  Share,
-  Platform,
-  FlatList,
-  BackHandler
-} from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { WebView } from 'react-native-webview';
-import AutoHeightWebView from 'react-native-autoheight-webview';
-import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+    ActivityIndicator,
+    BackHandler,
+    Dimensions,
+    FlatList,
+    Platform,
+    ScrollView,
+    Share,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import AutoHeightWebView from 'react-native-autoheight-webview';
+import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Tts from 'react-native-tts';
-import { apiService } from '../services/api';
-import { storage } from '../utils/storage';
-import { COLORS, SPACING, FONT_SIZES, ARTICLE_SECTIONS, LANGUAGES } from '../config/constants';
-import { getAdUnitId, AD_CONFIG } from '../config/adsConfig';
+import { WebView } from 'react-native-webview';
 import Header from '../components/Header';
 import NewsCard from '../components/NewsCard';
+import { AD_CONFIG, getAdUnitId } from '../config/adsConfig';
+import { ARTICLE_SECTIONS, COLORS, FONT_SIZES, LANGUAGES, SPACING } from '../config/constants';
+import { apiService } from '../services/api';
 import { formatIndianDate, getImageUrl, stripHtml } from '../utils/dateUtils';
+import { storage } from '../utils/storage';
 
 // Helper to strip HTML but preserve spaces (doesn't trim)
 const stripHtmlPreserveSpaces = (html) => {
@@ -222,7 +221,11 @@ const ArticleDetailScreen = ({ route }) => {
   const insets = useSafeAreaInsets();
   
   // Get params from route or useLocalSearchParams for Expo Router
-  const { slug, post: initialPost, language: articleLanguage } = route?.params || {};
+  const { slug: rawSlug, post: initialPost, language: articleLanguage } = route?.params || {};
+  
+  // Safely extract slug - handle arrays (iOS sometimes returns arrays from Expo Router)
+  const slug = Array.isArray(rawSlug) ? rawSlug[0] : (rawSlug || '');
+  
   const [post, setPost] = useState(initialPost || null);
   const [relatedPosts, setRelatedPosts] = useState([]);
   const [loading, setLoading] = useState(!initialPost);
@@ -311,7 +314,13 @@ const ArticleDetailScreen = ({ route }) => {
     }
     
     // Stop TTS if playing when navigating to new article
-    Tts.stop();
+    try {
+      if (Tts && Tts.stop && typeof Tts.stop === 'function') {
+        Tts.stop();
+      }
+    } catch (error) {
+      console.log('[ArticleDetail] Error stopping TTS (non-fatal):', error);
+    }
     setIsTTSPlaying(false);
     
     // Ensure we have a slug before trying to load
@@ -347,7 +356,7 @@ const ArticleDetailScreen = ({ route }) => {
       }
       // Stop TTS if playing
       try {
-        if (isTTSPlaying) {
+        if (isTTSPlaying && Tts && Tts.stop && typeof Tts.stop === 'function') {
           Tts.stop();
           if (isMountedRef.current) {
             setIsTTSPlaying(false);
@@ -519,7 +528,9 @@ const ArticleDetailScreen = ({ route }) => {
       setLoading(true);
       
       // Clean slug - remove query parameters, URL decode, trim
-      const cleanSlug = slug.split('?')[0].split('#')[0].trim();
+      // Slug is already normalized at component level, but ensure it's a string for safety
+      const slugString = String(slug || '');
+      const cleanSlug = slugString.split('?')[0].split('#')[0].trim();
       
       // 🐛 DEBUG - Log slug processing
       console.log('\n🔍 [ArticleDetail DEBUG] loadPost');
@@ -840,18 +851,23 @@ const ArticleDetailScreen = ({ route }) => {
   // Update TTS language when currentLanguage changes
   useEffect(() => {
     if (!currentLanguage) return; // Wait for language to be loaded
+    if (!Tts) return; // TTS not available
     
     try {
       // Set TTS language based on current language selection
       // Use 'hi' for Hindi and 'en-IN' for English (Indian English voice to match Hindi voice)
       const ttsLanguage = currentLanguage === 'hindi' ? 'hi' : 'en-IN';
-      Tts.setDefaultLanguage(ttsLanguage);
+      if (Tts.setDefaultLanguage && typeof Tts.setDefaultLanguage === 'function') {
+        Tts.setDefaultLanguage(ttsLanguage);
+      }
     } catch (langError) {
       console.warn('TTS language not supported, using fallback:', langError);
       // Fallback to en-US if Indian English is not available
       try {
         const fallbackLanguage = currentLanguage === 'hindi' ? 'hi' : 'en-US';
-        Tts.setDefaultLanguage(fallbackLanguage);
+        if (Tts.setDefaultLanguage && typeof Tts.setDefaultLanguage === 'function') {
+          Tts.setDefaultLanguage(fallbackLanguage);
+        }
       } catch (fallbackError) {
         console.error('Error setting fallback TTS language:', fallbackError);
       }
@@ -859,9 +875,22 @@ const ArticleDetailScreen = ({ route }) => {
   }, [currentLanguage]);
 
   const handleTTS = () => {
+    // Check if TTS is available
+    if (!Tts) {
+      console.warn('[ArticleDetail] TTS module not available');
+      alert('Text-to-speech is not available.');
+      return;
+    }
+
     if (isTTSPlaying) {
       // Stop TTS
-      Tts.stop();
+      try {
+        if (Tts.stop && typeof Tts.stop === 'function') {
+          Tts.stop();
+        }
+      } catch (error) {
+        console.error('[ArticleDetail] Error stopping TTS:', error);
+      }
       setIsTTSPlaying(false);
     } else {
       // Start TTS
@@ -874,7 +903,12 @@ const ArticleDetailScreen = ({ route }) => {
       
       try {
         // Language is already set in useEffect, just speak
-        Tts.speak(textToSpeak);
+        if (Tts.speak && typeof Tts.speak === 'function') {
+          Tts.speak(textToSpeak);
+        } else {
+          console.error('[ArticleDetail] TTS.speak is not available');
+          alert('Unable to read article. Please try again.');
+        }
       } catch (error) {
         console.error('Error starting TTS:', error);
         alert('Unable to read article. Please try again.');

@@ -33,17 +33,17 @@ export const AD_UNIT_IDS = {
   ios: {
     // Banner ads - USING GOOGLE TEST IDs (MUST REPLACE BEFORE PRODUCTION)
     banner: {
-      stories: 'ca-app-pub-3940256099942544/2934735716', // Google Test Banner ID
-      home: 'ca-app-pub-3940256099942544/2934735716',    // Google Test Banner ID
+      stories: 'ca-app-pub-3552884226286157/1874394456', // Google Test Banner ID
+      home: 'ca-app-pub-3552884226286157/5430496081',    // Google Test Banner ID
     },
     // Interstitial ads (full-screen)
     interstitial: {
-      betweenStories: 'ca-app-pub-3940256099942544/4411468910', // Google Test Interstitial ID
-      homeNavigation: 'ca-app-pub-3940256099942544/4411468910', // Google Test Interstitial ID (same as betweenStories for now)
+      betweenStories: 'ca-app-pub-3552884226286157/5047352708', // Google Test Interstitial ID
+      homeNavigation: 'ca-app-pub-3552884226286157/5047352708', // Google Test Interstitial ID (same as betweenStories for now)
     },
     // Native ads
     native: {
-      inFeed: 'ca-app-pub-3940256099942544/3986624511', // Google Test Native ID
+      inFeed: 'ca-app-pub-3552884226286157/2201697515', // Google Test Native ID
     },
   },
 };

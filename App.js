@@ -1,18 +1,18 @@
-import React, { useEffect, useState, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View, ActivityIndicator } from 'react-native';
-import { OneSignal, LogLevel } from 'react-native-onesignal';
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, View } from 'react-native';
 import mobileAds from 'react-native-google-mobile-ads';
+import { LogLevel, OneSignal } from 'react-native-onesignal';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { COLORS, DEFAULT_LANGUAGE, getApiBaseUrl, LANGUAGES, setApiBaseUrl } from './src/config/constants';
 import AppNavigator from './src/navigation/AppNavigator';
 import LanguageSelectionScreen from './src/screens/LanguageSelectionScreen';
 import OfflineScreen from './src/screens/OfflineScreen';
-import { COLORS, LANGUAGES, DEFAULT_LANGUAGE, setApiBaseUrl, getApiBaseUrl } from './src/config/constants';
-import { storage } from './src/utils/storage';
-import { getOneSignalPlayerId, registerDeviceToken, saveNotificationLocally } from './src/services/notificationService';
-import { subscribeToNetworkChanges, isConnected } from './src/services/networkService';
-import { markNotificationUrlAsHandled } from './src/utils/notificationNavigation';
 import { checkForUpdate } from './src/services/inAppUpdates';
+import { isConnected, subscribeToNetworkChanges } from './src/services/networkService';
+import { getOneSignalPlayerId, registerDeviceToken, saveNotificationLocally } from './src/services/notificationService';
+import { markNotificationUrlAsHandled } from './src/utils/notificationNavigation';
+import { storage } from './src/utils/storage';
 
 export default function App() {
   const [showLanguageSelection, setShowLanguageSelection] = useState(null); // null = checking, true = show, false = hide
@@ -202,6 +202,14 @@ export default function App() {
       const notification = event.notification;
       const data = notification.additionalData || {};
       const notificationId = notification.notificationId;
+      
+      // Check if notification has a launchURL that would open in browser
+      // If it does, we'll handle navigation ourselves to prevent browser opening
+      const launchURL = notification.launchURL;
+      if (launchURL) {
+        console.log('[App] ⚠️  Notification has launchURL:', launchURL);
+        console.log('[App] ✅ Will handle navigation in-app to prevent browser opening');
+      }
       
       // Prevent duplicate handling of the same notification
       if (lastHandledNotificationId.current === notificationId) {
@@ -550,7 +558,7 @@ export default function App() {
   if (!isReady) {
     return (
       <SafeAreaProvider>
-        <StatusBar style="dark" backgroundColor={COLORS.background} />
+        <StatusBar style="light" backgroundColor="#6B2C1A" />
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background }}>
           <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
@@ -562,7 +570,7 @@ export default function App() {
   if (showLanguageSelection) {
     return (
       <SafeAreaProvider>
-        <StatusBar style="dark" backgroundColor={COLORS.background} />
+        <StatusBar style="light" backgroundColor="#6B2C1A" />
         <LanguageSelectionScreen onLanguageSelected={handleLanguageSelected} />
       </SafeAreaProvider>
     );
@@ -580,7 +588,7 @@ export default function App() {
   if (!isOnline && isReady && !showLanguageSelection) {
     return (
       <SafeAreaProvider>
-        <StatusBar style="dark" backgroundColor={COLORS.background} />
+        <StatusBar style="light" backgroundColor="#6B2C1A" />
         <OfflineScreen 
           onConnectionRestored={() => {
             console.log('[App] ✅ Connection restored, resuming app...');

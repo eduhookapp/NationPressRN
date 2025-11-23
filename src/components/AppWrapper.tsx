@@ -1,16 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { View, ActivityIndicator } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, View } from 'react-native';
+import { OneSignal } from 'react-native-onesignal';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { COLORS, DEFAULT_LANGUAGE, getApiBaseUrl, LANGUAGES, setApiBaseUrl } from '../config/constants';
+import { useAppContext } from '../providers/AppProvider';
 import LanguageSelectionScreen from '../screens/LanguageSelectionScreen';
 import OfflineScreen from '../screens/OfflineScreen';
-import { COLORS, LANGUAGES, DEFAULT_LANGUAGE, setApiBaseUrl } from '../config/constants';
-import { storage } from '../utils/storage';
-import { useAppContext } from '../providers/AppProvider';
-import { OneSignal } from 'react-native-onesignal';
 import { getOneSignalPlayerId, registerDeviceToken } from '../services/notificationService';
-import { getApiBaseUrl } from '../config/constants';
+import { storage } from '../utils/storage';
 
 interface AppWrapperProps {
   children: React.ReactNode;
@@ -92,7 +91,7 @@ export const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
   if (!isReady) {
     return (
       <SafeAreaProvider>
-        <StatusBar style="dark" backgroundColor={COLORS.background} />
+        <StatusBar style="light" backgroundColor="#6B2C1A" />
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background }}>
           <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
@@ -103,7 +102,7 @@ export const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
   if (showLanguageSelection) {
     return (
       <SafeAreaProvider>
-        <StatusBar style="dark" backgroundColor={COLORS.background} />
+        <StatusBar style="light" backgroundColor="#6B2C1A" />
         <LanguageSelectionScreen onLanguageSelected={handleLanguageSelected} />
       </SafeAreaProvider>
     );
@@ -112,7 +111,7 @@ export const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
   if (!isOnline && isReady && !showLanguageSelection) {
     return (
       <SafeAreaProvider>
-        <StatusBar style="dark" backgroundColor={COLORS.background} />
+        <StatusBar style="light" backgroundColor="#6B2C1A" />
         <OfflineScreen 
           onConnectionRestored={() => {
             console.log('[AppWrapper] ✅ Connection restored, resuming app...');

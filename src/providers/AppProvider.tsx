@@ -1,14 +1,14 @@
-import React, { useEffect, useRef, createContext, useContext } from 'react';
-import { OneSignal, LogLevel } from 'react-native-onesignal';
+import { useRouter } from 'expo-router';
+import React, { createContext, useContext, useEffect, useRef } from 'react';
 import mobileAds from 'react-native-google-mobile-ads';
-import * as Linking from 'expo-linking';
-import { getOneSignalPlayerId, registerDeviceToken, saveNotificationLocally } from '../services/notificationService';
-import { subscribeToNetworkChanges, isConnected } from '../services/networkService';
-import { markNotificationUrlAsHandled } from '../utils/notificationNavigation';
+import { LogLevel, OneSignal } from 'react-native-onesignal';
+import { DEFAULT_LANGUAGE, LANGUAGES, setApiBaseUrl } from '../config/constants';
 import { checkForUpdate } from '../services/inAppUpdates';
-import { LANGUAGES, DEFAULT_LANGUAGE, setApiBaseUrl, getApiBaseUrl } from '../config/constants';
-import { storage } from '../utils/storage';
+import { isConnected, subscribeToNetworkChanges } from '../services/networkService';
+import { getOneSignalPlayerId, registerDeviceToken, saveNotificationLocally } from '../services/notificationService';
 import crashLogger from '../utils/crashLogger';
+import { markNotificationUrlAsHandled } from '../utils/notificationNavigation';
+import { storage } from '../utils/storage';
 
 interface AppContextType {
   isOnline: boolean;
@@ -32,6 +32,7 @@ interface AppProviderProps {
 }
 
 export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
+  const router = useRouter();
   const [isOnline, setIsOnline] = React.useState(true);
   const handledNotificationRef = useRef(false);
   const lastHandledNotificationUrl = useRef<string | null>(null);
@@ -101,47 +102,62 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     };
   }, []);
 
-  // Navigate to article helper - using Expo Router via Linking
-  // Note: We use Linking.openURL() which will be handled by Expo Router's deep link handler
+  // Navigate to article helper - using Expo Router directly
+  // This ensures navigation happens within the app, not in browser
   const navigateToArticle = React.useCallback((params: { slug: string; category?: string; language?: string }) => {
     try {
       const category = params.category || 'news';
-      const articlePath = `/article/${category}/${params.slug}`;
+      const slug = params.slug;
       
-      console.log('[AppProvider] 🚀 Navigating with Expo Router:', articlePath);
+      if (!slug) {
+        console.error('[AppProvider] ❌ No slug provided for navigation');
+        return;
+      }
+      
+      console.log('[AppProvider] 🚀 Navigating with Expo Router directly');
       console.log('[AppProvider] 📋 Params:', JSON.stringify(params, null, 2));
       
       // Use a small delay to ensure the app is ready to handle navigation
       // This prevents crashes when navigating immediately after app launch from notification
       setTimeout(() => {
         try {
-          // Build URL with query params - use the app scheme directly
-          const url = `nationpress://${articlePath}?slug=${encodeURIComponent(params.slug)}${params.category ? `&category=${encodeURIComponent(params.category)}` : ''}${params.language ? `&language=${encodeURIComponent(params.language)}` : ''}`;
+          if (!router) {
+            console.error('[AppProvider] ❌ Router not available');
+            return;
+          }
           
-          console.log('[AppProvider] 🔗 Opening URL:', url);
+          // Use router.push() directly - this navigates within the app, not browser
+          const articlePath = `/article/${category}/${slug}`;
           
-          // Use expo-linking to navigate (Expo Router will handle it via catch-all route)
-          Linking.openURL(url).catch((error) => {
-            console.error('[AppProvider] ❌ Error opening URL:', error);
-            // Fallback: try without query params
-            try {
-              Linking.openURL(`nationpress://${articlePath}`).catch((fallbackError) => {
-                console.error('[AppProvider] ❌ Fallback navigation also failed:', fallbackError);
-              });
-            } catch (fallbackError) {
-              console.error('[AppProvider] ❌ Fallback navigation error:', fallbackError);
-            }
+          console.log('[AppProvider] 🔗 Navigating to:', articlePath);
+          
+          // Use type assertion for dynamic pathname
+          router.push({
+            pathname: articlePath as any,
+            params: {
+              slug,
+              category,
+              ...(params.language && { language: params.language }),
+            },
           });
           
-          console.log('[AppProvider] ✅ Navigation initiated');
+          console.log('[AppProvider] ✅ Navigation initiated within app');
         } catch (error) {
-          console.error('[AppProvider] ❌ Navigation error in setTimeout:', error);
+          console.error('[AppProvider] ❌ Navigation error:', error);
+          // Fallback: try with string path
+          try {
+            if (router) {
+              router.push(`/article/${category}/${slug}`);
+            }
+          } catch (fallbackError) {
+            console.error('[AppProvider] ❌ Fallback navigation also failed:', fallbackError);
+          }
         }
       }, 300); // Small delay to ensure app is ready
     } catch (error) {
       console.error('[AppProvider] ❌ Navigation error:', error);
     }
-  }, []);
+  }, [router]);
 
   // Initialize AdMob and OneSignal
   useEffect(() => {
@@ -182,6 +198,14 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       const notification = event.notification;
       const data: any = notification.additionalData || {};
       const notificationId = notification.notificationId;
+      
+      // Check if notification has a launchURL that would open in browser
+      // If it does, we'll handle navigation ourselves to prevent browser opening
+      const launchURL = (notification as any).launchURL;
+      if (launchURL) {
+        console.log('[AppProvider] ⚠️  Notification has launchURL:', launchURL);
+        console.log('[AppProvider] ✅ Will handle navigation in-app to prevent browser opening');
+      }
       
       if (lastHandledNotificationId.current === notificationId) {
         console.log('[AppProvider] ⚠️  This notification was already handled, ignoring duplicate click');
@@ -263,14 +287,32 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         console.log('[AppProvider] 🔔 Set isNavigatingFromNotification = true');
         console.log('[AppProvider] 🔔 Set lastHandledNotificationId =', notificationId);
         
-        // Use Expo Router directly - no need to wait for navigation ref
-        console.log('[AppProvider] ✅ Navigating with Expo Router');
+        // Navigate immediately to prevent OneSignal from opening URL in browser
+        // Use Expo Router directly - navigate synchronously if possible
+        console.log('[AppProvider] ✅ Navigating with Expo Router immediately');
         try {
-          navigateToArticle({
-            slug,
-            category,
-            language: notificationLanguage,
-          });
+          // Navigate immediately without delay to prevent browser opening
+          const articleCategory = category || 'news';
+          if (router) {
+            // Use type assertion for dynamic pathname
+            router.push({
+              pathname: `/article/${articleCategory}/${slug}` as any,
+              params: {
+                slug,
+                category: articleCategory,
+                ...(notificationLanguage && { language: notificationLanguage }),
+              },
+            });
+            console.log('[AppProvider] ✅ Navigation initiated immediately within app');
+          } else {
+            // Fallback to navigateToArticle if router not ready
+            navigateToArticle({
+              slug,
+              category,
+              language: notificationLanguage,
+            });
+          }
+          
           isNavigatingFromNotification.current = false;
           setTimeout(() => {
             handledNotificationRef.current = false;

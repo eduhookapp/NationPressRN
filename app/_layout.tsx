@@ -1,10 +1,10 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { AppProvider } from '../src/providers/AppProvider';
 import { AppWrapper } from '../src/components/AppWrapper';
+import { AppProvider } from '../src/providers/AppProvider';
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
@@ -31,7 +31,7 @@ export default function RootLayout() {
             <Stack.Screen name="advertise" options={{ headerShown: false }} />
             <Stack.Screen name="[...path]" options={{ headerShown: false }} />
           </Stack>
-          <StatusBar style="auto" />
+          <StatusBar style="dark" />
         </AppWrapper>
       </AppProvider>
     </SafeAreaProvider>
