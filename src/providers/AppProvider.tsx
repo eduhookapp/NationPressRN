@@ -1,3 +1,4 @@
+import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import React, { createContext, useContext, useEffect, useRef } from 'react';
 import mobileAds from 'react-native-google-mobile-ads';
@@ -159,6 +160,41 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   }, [router]);
 
+  // Intercept URL opening to prevent browser from opening when handling notifications
+  useEffect(() => {
+    const handleURL = (event: { url: string }) => {
+      const url = event.url;
+      console.log('[AppProvider] 🔗 URL intercepted:', url);
+      
+      // Check if we're currently handling a notification
+      if (handledNotificationRef.current || isNavigatingFromNotification.current) {
+        console.log('[AppProvider] 🚫 Preventing URL from opening in browser (notification being handled)');
+        // Don't open the URL - we're handling navigation in-app
+        return;
+      }
+      
+      // Check if this URL was already handled by a notification
+      if (lastHandledNotificationUrl.current && url === lastHandledNotificationUrl.current) {
+        console.log('[AppProvider] 🚫 Preventing URL from opening in browser (already handled by notification)');
+        return;
+      }
+      
+      // Check if URL is from our domain (nationpress.com or rashtrapress.com)
+      // If it is and we have a slug, we should handle it in-app
+      if (url.includes('nationpress.com') || url.includes('rashtrapress.com')) {
+        console.log('[AppProvider] 🔗 URL is from our domain, will handle in-app if needed');
+        // Let it through - Expo Router will handle it via deep link handler
+      }
+    };
+
+    // Listen for URL events
+    const subscription = Linking.addEventListener('url', handleURL);
+    
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
   // Initialize AdMob and OneSignal
   useEffect(() => {
     // Initialize Google AdMob
@@ -205,6 +241,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       if (launchURL) {
         console.log('[AppProvider] ⚠️  Notification has launchURL:', launchURL);
         console.log('[AppProvider] ✅ Will handle navigation in-app to prevent browser opening');
+        // Mark URL as handled immediately to prevent browser opening
+        lastHandledNotificationUrl.current = launchURL;
+        markNotificationUrlAsHandled(launchURL);
       }
       
       if (lastHandledNotificationId.current === notificationId) {
@@ -217,6 +256,11 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         return;
       }
       
+      // Set flags IMMEDIATELY to prevent URL opening
+      handledNotificationRef.current = true;
+      isNavigatingFromNotification.current = true;
+      lastHandledNotificationId.current = notificationId;
+      
       console.log('📦 Full notification data:', JSON.stringify(data, null, 2));
       
       saveNotificationLocally({
@@ -228,9 +272,10 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       
       let slug = data.slug || data.slug_unique || data.shortSlug;
       let category = data.category;
-      const url = data.url;
+      const url = data.url || launchURL;
       const notificationLanguage = data.language;
       
+      // Mark URL as handled IMMEDIATELY to prevent browser opening
       if (url) {
         lastHandledNotificationUrl.current = url;
         markNotificationUrlAsHandled(url);
@@ -279,16 +324,10 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       
       if (slug) {
         console.log('[AppProvider] Navigating to article:', { slug, category, language: notificationLanguage });
-        
-        handledNotificationRef.current = true;
-        isNavigatingFromNotification.current = true;
-        lastHandledNotificationId.current = notificationId;
-        console.log('[AppProvider] 🔔 Set handledNotificationRef = true');
-        console.log('[AppProvider] 🔔 Set isNavigatingFromNotification = true');
-        console.log('[AppProvider] 🔔 Set lastHandledNotificationId =', notificationId);
+        console.log('[AppProvider] 🔔 Flags already set to prevent browser opening');
         
         // Navigate immediately to prevent OneSignal from opening URL in browser
-        // Use Expo Router directly - navigate synchronously if possible
+        // Use Expo Router directly - navigate synchronously
         console.log('[AppProvider] ✅ Navigating with Expo Router immediately');
         try {
           // Navigate immediately without delay to prevent browser opening
@@ -313,11 +352,17 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
             });
           }
           
-          isNavigatingFromNotification.current = false;
+          // Reset flags after a short delay to allow navigation to complete
+          setTimeout(() => {
+            isNavigatingFromNotification.current = false;
+            console.log('[AppProvider] 🔔 Reset isNavigatingFromNotification = false');
+          }, 100);
+          
           setTimeout(() => {
             handledNotificationRef.current = false;
             console.log('[AppProvider] 🔔 Reset handledNotificationRef = false');
-          }, 500);
+          }, 2000); // Keep flag longer to prevent browser opening
+          
           setTimeout(() => {
             lastHandledNotificationId.current = null;
             lastHandledNotificationUrl.current = null;

@@ -35,6 +35,7 @@
       },
       "infoPlist": {
         "UIBackgroundModes": ["remote-notification"],
+        "OneSignal_suppress_launch_urls": true,
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false,
           "NSExceptionDomains": {
