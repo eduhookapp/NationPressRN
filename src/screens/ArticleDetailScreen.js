@@ -1,24 +1,24 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import * as Speech from 'expo-speech';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    BackHandler,
-    Dimensions,
-    FlatList,
-    Platform,
-    ScrollView,
-    Share,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  BackHandler,
+  Dimensions,
+  FlatList,
+  Platform,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import AutoHeightWebView from 'react-native-autoheight-webview';
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import Tts from 'react-native-tts';
 import { WebView } from 'react-native-webview';
 import Header from '../components/Header';
 import NewsCard from '../components/NewsCard';
@@ -246,6 +246,24 @@ const ArticleDetailScreen = ({ route }) => {
   // All refs
   const isNavigatingRef = useRef(false);
   const isMountedRef = useRef(true);
+  const isTTSPlayingRef = useRef(false);
+  
+  const resetArticleTTSState = React.useCallback(() => {
+    isTTSPlayingRef.current = false;
+    if (isMountedRef.current) {
+      setIsTTSPlaying(false);
+    }
+  }, []);
+
+  const stopArticleTTS = React.useCallback(async () => {
+    try {
+      resetArticleTTSState();
+      // Expo Speech stop() returns a Promise and works reliably on iOS
+      await Speech.stop();
+    } catch (error) {
+      console.log('[ArticleDetail] Error stopping TTS (non-fatal):', error);
+    }
+  }, [resetArticleTTSState]);
   
   // Extract YouTube video ID helper function (defined early to avoid hook ordering issues)
   const getYouTubeVideoId = React.useCallback((url) => {
@@ -295,6 +313,18 @@ const ArticleDetailScreen = ({ route }) => {
     return () => clearInterval(interval);
   }, []);
 
+  // Stop TTS when screen loses focus (navigation away)
+  useFocusEffect(
+    useCallback(() => {
+      // Screen focused - no action needed
+      return () => {
+        // Screen unfocused - stop TTS
+        console.log('[ArticleDetail] Screen unfocused, stopping TTS...');
+        stopArticleTTS();
+      };
+    }, [stopArticleTTS])
+  );
+
   useEffect(() => {
     // Reset all states when slug changes (new article) or reloadKey changes (force reload)
     const reloadKey = route.params?.reloadKey;
@@ -314,14 +344,7 @@ const ArticleDetailScreen = ({ route }) => {
     }
     
     // Stop TTS if playing when navigating to new article
-    try {
-      if (Tts && Tts.stop && typeof Tts.stop === 'function') {
-        Tts.stop();
-      }
-    } catch (error) {
-      console.log('[ArticleDetail] Error stopping TTS (non-fatal):', error);
-    }
-    setIsTTSPlaying(false);
+    stopArticleTTS();
     
     // Ensure we have a slug before trying to load
     if (!slug) {
@@ -336,7 +359,7 @@ const ArticleDetailScreen = ({ route }) => {
     } else {
       loadRelatedPosts();
     }
-  }, [slug, initialPost, route.params?.reloadKey]);
+  }, [slug, initialPost, route.params?.reloadKey, stopArticleTTS]);
   
   // Track if component is mounted to prevent state updates after unmount
   useEffect(() => {
@@ -356,11 +379,8 @@ const ArticleDetailScreen = ({ route }) => {
       }
       // Stop TTS if playing
       try {
-        if (isTTSPlaying && Tts && Tts.stop && typeof Tts.stop === 'function') {
-          Tts.stop();
-          if (isMountedRef.current) {
-            setIsTTSPlaying(false);
-          }
+        if (isTTSPlaying) {
+          stopArticleTTS();
         }
       } catch (error) {
         // Ignore errors during cleanup
@@ -372,7 +392,7 @@ const ArticleDetailScreen = ({ route }) => {
         stickyAdTimerRef.current = null;
       }
     };
-  }, [isTTSPlaying]);
+  }, [isTTSPlaying, stopArticleTTS]);
   
   // Render WebViews sequentially to prevent native crash
   useEffect(() => {
@@ -758,140 +778,18 @@ const ArticleDetailScreen = ({ route }) => {
     return fullText.trim();
   };
 
-  // Setup TTS event listeners (only once on mount)
+  // Language is now passed in options for each speak() call, no need for event listeners or default settings
+  // Cleanup TTS on unmount
   useEffect(() => {
-    // Check if Tts is available before using it
-    if (!Tts) {
-      console.warn('[ArticleDetail] TTS module not available');
-      return;
-    }
-
-    const onTtsFinish = () => {
-      if (isMountedRef.current) {
-        setIsTTSPlaying(false);
-      }
-    };
-    
-    const onTtsStart = () => {
-      if (isMountedRef.current) {
-        setIsTTSPlaying(true);
-      }
-    };
-    
-    const onTtsError = (error) => {
-      console.error('TTS Error:', error);
-      if (isMountedRef.current) {
-        setIsTTSPlaying(false);
-      }
-      // Don't show alert during cleanup/unmount
-      if (isMountedRef.current) {
-        alert('Unable to read article. Please try again.');
-      }
-    };
-
-    // Only add listeners if Tts.addEventListener exists
-    if (Tts.addEventListener && typeof Tts.addEventListener === 'function') {
-      try {
-        Tts.addEventListener('tts-finish', onTtsFinish);
-        Tts.addEventListener('tts-start', onTtsStart);
-        Tts.addEventListener('tts-cancel', onTtsFinish);
-        Tts.addEventListener('tts-error', onTtsError);
-      } catch (error) {
-        console.error('[ArticleDetail] Error adding TTS event listeners:', error);
-      }
-    } else {
-      console.warn('[ArticleDetail] TTS addEventListener not available');
-    }
-
-    // Set default TTS settings (rate and pitch)
-    try {
-      if (Tts.setDefaultRate && typeof Tts.setDefaultRate === 'function') {
-        Tts.setDefaultRate(0.5);
-      }
-      if (Tts.setDefaultPitch && typeof Tts.setDefaultPitch === 'function') {
-        Tts.setDefaultPitch(1.0);
-      }
-    } catch (error) {
-      console.error('Error setting TTS defaults:', error);
-    }
-
     return () => {
-      // Safely remove event listeners if the method exists
-      // Only cleanup if component is still mounted or during unmount
-      try {
-        // Stop TTS first to prevent any ongoing operations
-        if (Tts.stop && typeof Tts.stop === 'function') {
-          try {
-            Tts.stop();
-          } catch (stopError) {
-            // Ignore stop errors during cleanup
-            console.log('[ArticleDetail] Error stopping TTS during cleanup (non-fatal):', stopError);
-          }
-        }
-
-        // Then remove listeners if available
-        if (Tts.removeEventListener && typeof Tts.removeEventListener === 'function') {
-          try {
-            Tts.removeEventListener('tts-finish', onTtsFinish);
-            Tts.removeEventListener('tts-start', onTtsStart);
-            Tts.removeEventListener('tts-cancel', onTtsFinish);
-            Tts.removeEventListener('tts-error', onTtsError);
-          } catch (removeError) {
-            // Ignore remove listener errors - they're not critical
-            console.log('[ArticleDetail] Error removing TTS event listeners (non-fatal):', removeError);
-          }
-        }
-      } catch (error) {
-        // Catch any unexpected errors during cleanup
-        console.log('[ArticleDetail] Unexpected error during TTS cleanup (non-fatal):', error);
-      }
+      stopArticleTTS();
     };
-  }, []);
+  }, [stopArticleTTS]);
 
-  // Update TTS language when currentLanguage changes
-  useEffect(() => {
-    if (!currentLanguage) return; // Wait for language to be loaded
-    if (!Tts) return; // TTS not available
-    
-    try {
-      // Set TTS language based on current language selection
-      // Use 'hi' for Hindi and 'en-IN' for English (Indian English voice to match Hindi voice)
-      const ttsLanguage = currentLanguage === 'hindi' ? 'hi' : 'en-IN';
-      if (Tts.setDefaultLanguage && typeof Tts.setDefaultLanguage === 'function') {
-        Tts.setDefaultLanguage(ttsLanguage);
-      }
-    } catch (langError) {
-      console.warn('TTS language not supported, using fallback:', langError);
-      // Fallback to en-US if Indian English is not available
-      try {
-        const fallbackLanguage = currentLanguage === 'hindi' ? 'hi' : 'en-US';
-        if (Tts.setDefaultLanguage && typeof Tts.setDefaultLanguage === 'function') {
-          Tts.setDefaultLanguage(fallbackLanguage);
-        }
-      } catch (fallbackError) {
-        console.error('Error setting fallback TTS language:', fallbackError);
-      }
-    }
-  }, [currentLanguage]);
-
-  const handleTTS = () => {
-    // Check if TTS is available
-    if (!Tts) {
-      console.warn('[ArticleDetail] TTS module not available');
-      alert('Text-to-speech is not available.');
-      return;
-    }
-
+  const handleTTS = async () => {
     if (isTTSPlaying) {
       // Stop TTS
-      try {
-        if (Tts.stop && typeof Tts.stop === 'function') {
-          Tts.stop();
-        }
-      } catch (error) {
-        console.error('[ArticleDetail] Error stopping TTS:', error);
-      }
-      setIsTTSPlaying(false);
+      await stopArticleTTS();
     } else {
       // Start TTS
       const textToSpeak = getTextForTTS();
@@ -902,15 +800,38 @@ const ArticleDetailScreen = ({ route }) => {
       }
       
       try {
-        // Language is already set in useEffect, just speak
-        if (Tts.speak && typeof Tts.speak === 'function') {
-          Tts.speak(textToSpeak);
-        } else {
-          console.error('[ArticleDetail] TTS.speak is not available');
-          alert('Unable to read article. Please try again.');
-        }
+        // Use en-US for better voice quality, fallback to en-IN for Indian English
+        const ttsLanguage = currentLanguage === 'hindi' ? 'hi' : 'en-US';
+        isTTSPlayingRef.current = true;
+        setIsTTSPlaying(true);
+        
+        Speech.speak(textToSpeak, {
+          language: ttsLanguage,
+          rate: 0.95, // Fast rate optimized for news reading (close to normal speech speed)
+          pitch: 1.0, // Normal pitch
+          onStart: () => {
+            isTTSPlayingRef.current = true;
+            if (isMountedRef.current) {
+              setIsTTSPlaying(true);
+            }
+          },
+          onDone: () => {
+            resetArticleTTSState();
+          },
+          onError: (error) => {
+            console.error('TTS Error:', error);
+            resetArticleTTSState();
+            if (isMountedRef.current) {
+              alert('Unable to read article. Please try again.');
+            }
+          },
+          onStopped: () => {
+            resetArticleTTSState();
+          },
+        });
       } catch (error) {
         console.error('Error starting TTS:', error);
+        resetArticleTTSState();
         alert('Unable to read article. Please try again.');
       }
     }

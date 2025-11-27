@@ -1,30 +1,30 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { Image } from 'expo-image';
+import { useFocusEffect, useRouter } from 'expo-router';
+import * as Speech from 'expo-speech';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
+  ActivityIndicator,
+  Animated,
+  Dimensions,
   FlatList,
   RefreshControl,
-  ActivityIndicator,
-  Dimensions,
-  Animated,
   ScrollView,
+  StyleSheet,
+  Text,
   TouchableOpacity,
+  View,
 } from 'react-native';
+import { AdEventType, BannerAd, BannerAdSize, InterstitialAd } from 'react-native-google-mobile-ads';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import { BannerAd, BannerAdSize, InterstitialAd, AdEventType } from 'react-native-google-mobile-ads';
-import Tts from 'react-native-tts';
-import { apiService } from '../services/api';
-import { CATEGORIES, CATEGORY_SUBMENU_ITEMS, COLORS, SPACING, FONT_SIZES } from '../config/constants';
-import { getAdUnitId, AD_CONFIG } from '../config/adsConfig';
-import { storage } from '../utils/storage';
-import NewsCard from '../components/NewsCard';
 import CategoryTab from '../components/CategoryTab';
 import Header from '../components/Header';
+import NewsCard from '../components/NewsCard';
 import TagChips from '../components/TagChips';
-import { formatRelativeTime, getImageUrl, truncateText } from '../utils/dateUtils';
+import { AD_CONFIG, getAdUnitId } from '../config/adsConfig';
+import { CATEGORIES, CATEGORY_SUBMENU_ITEMS, COLORS, FONT_SIZES, SPACING } from '../config/constants';
+import { apiService } from '../services/api';
+import { formatRelativeTime, getImageUrl } from '../utils/dateUtils';
+import { storage } from '../utils/storage';
 
 const logo = require('../../assets/images/logo.png');
 const logoHindi = require('../../assets/images/logo-hindi.png');
@@ -71,6 +71,22 @@ const HomeScreen = () => {
   // Interstitial ad ref
   const interstitialAdRef = useRef(null);
 
+  const resetBreakingNewsTTSState = () => {
+    isTTSPlayingRef.current = false;
+    setIsBreakingNewsTTSPlaying(false);
+    setCurrentBreakingNewsIndex(0);
+  };
+
+  const stopBreakingNewsTTS = React.useCallback(async () => {
+    try {
+      resetBreakingNewsTTSState();
+      // Expo Speech stop() returns a Promise and works reliably on iOS
+      await Speech.stop();
+    } catch (error) {
+      console.error('[HomeScreen] Error stopping breaking news TTS:', error);
+    }
+  }, []);
+
   // Helper function to strip HTML tags
   const stripHtml = (html) => {
     if (!html) return '';
@@ -86,9 +102,75 @@ const HomeScreen = () => {
       .trim();
   };
 
+  // Helper to read next breaking news item (used in queue)
+  const readNextBreakingNewsItem = React.useCallback((nextIndex) => {
+    const currentBreakingNews = breakingNewsRef.current;
+    if (nextIndex >= currentBreakingNews.length || !isTTSPlayingRef.current || isCategoryTTSPlayingRef.current) {
+      resetBreakingNewsTTSState();
+      return;
+    }
+
+    const item = currentBreakingNews[nextIndex];
+    const title = item.title || item.headline || '';
+    const synopsis = item.synopsis || item.short_description || '';
+    
+    let textToSpeak = '';
+    
+    if (title) {
+      textToSpeak += `${title}. `;
+    }
+    
+    if (synopsis) {
+      const cleanSynopsis = stripHtml(synopsis);
+      if (cleanSynopsis) {
+        textToSpeak += `${cleanSynopsis}. `;
+      }
+    }
+    
+    if (textToSpeak.trim()) {
+      try {
+        // Use en-US for better voice quality, fallback to en-IN for Indian English
+        const ttsLanguage = currentLanguageRef.current === 'hindi' ? 'hi' : 'en-US';
+        isTTSPlayingRef.current = true;
+        setIsBreakingNewsTTSPlaying(true);
+        setCurrentBreakingNewsIndex(nextIndex);
+        
+        Speech.speak(textToSpeak.trim(), {
+          language: ttsLanguage,
+          rate: 0.95, // Fast rate optimized for news reading (close to normal speech speed)
+          pitch: 1.0, // Normal pitch
+          onStart: () => {
+            setIsBreakingNewsTTSPlaying(true);
+          },
+          onDone: () => {
+            // Move to next item
+            if (isTTSPlayingRef.current && !isCategoryTTSPlayingRef.current) {
+              setTimeout(() => {
+                readNextBreakingNewsItem(nextIndex + 1);
+              }, 500);
+            }
+          },
+          onError: (error) => {
+            console.error('[HomeScreen] TTS Error:', error);
+            resetBreakingNewsTTSState();
+          },
+          onStopped: () => {
+            resetBreakingNewsTTSState();
+          },
+        });
+      } catch (error) {
+        console.error('[HomeScreen] Error starting TTS:', error);
+        resetBreakingNewsTTSState();
+      }
+    } else {
+      // No text, move to next
+      readNextBreakingNewsItem(nextIndex + 1);
+    }
+  }, []);
+
   // Function to read a single breaking news item
-  const readBreakingNewsItem = (index) => {
-    if (!breakingNews || index >= breakingNews.length || !Tts) return;
+  const readBreakingNewsItem = React.useCallback((index) => {
+    if (!breakingNews || index >= breakingNews.length) return;
 
     const item = breakingNews[index];
     const title = item.title || item.headline || '';
@@ -111,27 +193,54 @@ const HomeScreen = () => {
     
     if (textToSpeak.trim()) {
       try {
-        Tts.speak(textToSpeak.trim());
+        // Use en-US for better voice quality, fallback to en-IN for Indian English
+        const ttsLanguage = currentLanguage === 'hindi' ? 'hi' : 'en-US';
+        isTTSPlayingRef.current = true;
+        setIsBreakingNewsTTSPlaying(true);
         setCurrentBreakingNewsIndex(index);
+        
+        Speech.speak(textToSpeak.trim(), {
+          language: ttsLanguage,
+          rate: 0.95, // Fast rate optimized for news reading (close to normal speech speed)
+          pitch: 1.0, // Normal pitch
+          onStart: () => {
+            setIsBreakingNewsTTSPlaying(true);
+          },
+          onDone: () => {
+            // Move to next item if still playing
+            if (isTTSPlayingRef.current && !isCategoryTTSPlayingRef.current) {
+              const nextIndex = index + 1;
+              if (nextIndex < breakingNews.length) {
+                setTimeout(() => {
+                  readNextBreakingNewsItem(nextIndex);
+                }, 500);
+              } else {
+                // Finished all items
+                resetBreakingNewsTTSState();
+              }
+            }
+          },
+          onError: (error) => {
+            console.error('[HomeScreen] TTS Error:', error);
+            resetBreakingNewsTTSState();
+          },
+          onStopped: () => {
+            resetBreakingNewsTTSState();
+          },
+        });
       } catch (error) {
         console.error('[HomeScreen] Error starting TTS:', error);
-        setIsBreakingNewsTTSPlaying(false);
+        resetBreakingNewsTTSState();
       }
     }
-  };
+  }, [breakingNews, currentLanguage, readNextBreakingNewsItem]);
 
   // Update refs when state changes
   useEffect(() => {
     breakingNewsRef.current = breakingNews;
     // Stop TTS if breaking news changes while playing
-    if (isBreakingNewsTTSPlaying && Tts) {
-      try {
-        Tts.stop();
-        setIsBreakingNewsTTSPlaying(false);
-        setCurrentBreakingNewsIndex(0);
-      } catch (error) {
-        console.error('[HomeScreen] Error stopping TTS on breaking news change:', error);
-      }
+    if (isBreakingNewsTTSPlaying) {
+      stopBreakingNewsTTS();
     }
   }, [breakingNews]);
 
@@ -151,168 +260,41 @@ const HomeScreen = () => {
     isCategoryTTSPlayingRef.current = isCategoryTTSPlaying;
   }, [isCategoryTTSPlaying]);
 
-  // Setup TTS event listeners for breaking news
-  useEffect(() => {
-    if (!Tts) {
-      console.warn('[HomeScreen] TTS module not available');
-      return;
-    }
 
-    const onTtsFinish = () => {
-      // Only handle if breaking news TTS is playing (not category TTS)
-      if (!isTTSPlayingRef.current || isCategoryTTSPlayingRef.current) {
-        return;
-      }
-      
-      // Move to next breaking news item
-      setCurrentBreakingNewsIndex(prev => {
-        const nextIndex = prev + 1;
-        const currentBreakingNews = breakingNewsRef.current;
-        const isPlaying = isTTSPlayingRef.current;
-        const currentLang = currentLanguageRef.current;
-        
-        if (nextIndex < currentBreakingNews.length && isPlaying && !isCategoryTTSPlayingRef.current) {
-          // Read next item
-          setTimeout(() => {
-            // Double check we're still playing breaking news TTS
-            if (!isTTSPlayingRef.current || isCategoryTTSPlayingRef.current) return;
-            
-            const item = currentBreakingNews[nextIndex];
-            const title = item.title || item.headline || '';
-            const synopsis = item.synopsis || item.short_description || '';
-            
-            let textToSpeak = '';
-            
-            if (title) {
-              textToSpeak += `${title}. `;
+  // Stop TTS when screen loses focus (navigation away)
+  useFocusEffect(
+    useCallback(() => {
+      // Screen focused - no action needed
+      return () => {
+        // Screen unfocused - stop all TTS
+        console.log('[HomeScreen] Screen unfocused, stopping all TTS...');
+        (async () => {
+          try {
+            await stopBreakingNewsTTS();
+            if (isCategoryTTSPlaying) {
+              await Speech.stop();
+              setIsCategoryTTSPlaying(false);
+              setCurrentCategoryStoryIndex(0);
             }
-            
-            if (synopsis) {
-              const cleanSynopsis = stripHtml(synopsis);
-              if (cleanSynopsis) {
-                textToSpeak += `${cleanSynopsis}. `;
-              }
-            }
-            
-            if (textToSpeak.trim()) {
-              try {
-                Tts.speak(textToSpeak.trim());
-              } catch (error) {
-                console.error('[HomeScreen] Error starting TTS:', error);
-                setIsBreakingNewsTTSPlaying(false);
-                return prev;
-              }
-            }
-          }, 500);
-          return nextIndex;
-        } else {
-          // Finished reading all items
-          setIsBreakingNewsTTSPlaying(false);
-          return 0;
-        }
-      });
-    };
+          } catch (error) {
+            console.error('[HomeScreen] Error stopping TTS on unfocus:', error);
+          }
+        })();
+      };
+    }, [isCategoryTTSPlaying, stopBreakingNewsTTS])
+  );
 
-    const onTtsStart = () => {
-      setIsBreakingNewsTTSPlaying(true);
-    };
-
-    const onTtsCancel = () => {
-      setIsBreakingNewsTTSPlaying(false);
-      setCurrentBreakingNewsIndex(0);
-    };
-
-    const onTtsError = (error) => {
-      console.error('[HomeScreen] TTS Error:', error);
-      setIsBreakingNewsTTSPlaying(false);
-      setCurrentBreakingNewsIndex(0);
-    };
-
-    // Set default TTS settings
-    try {
-      if (Tts.setDefaultRate && typeof Tts.setDefaultRate === 'function') {
-        Tts.setDefaultRate(0.5);
-      }
-      if (Tts.setDefaultPitch && typeof Tts.setDefaultPitch === 'function') {
-        Tts.setDefaultPitch(1.0);
-      }
-    } catch (error) {
-      console.error('[HomeScreen] Error setting TTS defaults:', error);
-    }
-
-    // Add event listeners
-    if (Tts.addEventListener && typeof Tts.addEventListener === 'function') {
-      try {
-        Tts.addEventListener('tts-finish', onTtsFinish);
-        Tts.addEventListener('tts-start', onTtsStart);
-        Tts.addEventListener('tts-cancel', onTtsCancel);
-        Tts.addEventListener('tts-error', onTtsError);
-      } catch (error) {
-        console.error('[HomeScreen] Error adding TTS event listeners:', error);
-      }
-    }
-
-    return () => {
-      // Cleanup
-      try {
-        if (Tts.stop && typeof Tts.stop === 'function') {
-          Tts.stop();
-        }
-        if (Tts.removeEventListener && typeof Tts.removeEventListener === 'function') {
-          Tts.removeEventListener('tts-finish', onTtsFinish);
-          Tts.removeEventListener('tts-start', onTtsStart);
-          Tts.removeEventListener('tts-cancel', onTtsCancel);
-          Tts.removeEventListener('tts-error', onTtsError);
-        }
-      } catch (error) {
-        console.error('[HomeScreen] Error during TTS cleanup:', error);
-      }
-    };
-  }, []);
-
-  // Update TTS language when currentLanguage changes
-  useEffect(() => {
-    if (!currentLanguage || !Tts) return;
-    
-    try {
-      const ttsLanguage = currentLanguage === 'hindi' ? 'hi' : 'en-IN';
-      if (Tts.setDefaultLanguage && typeof Tts.setDefaultLanguage === 'function') {
-        Tts.setDefaultLanguage(ttsLanguage);
-      }
-    } catch (langError) {
-      console.warn('[HomeScreen] TTS language not supported, using fallback:', langError);
-      try {
-        const fallbackLanguage = currentLanguage === 'hindi' ? 'hi' : 'en-US';
-        if (Tts.setDefaultLanguage && typeof Tts.setDefaultLanguage === 'function') {
-          Tts.setDefaultLanguage(fallbackLanguage);
-        }
-      } catch (fallbackError) {
-        console.error('[HomeScreen] Error setting fallback TTS language:', fallbackError);
-      }
-    }
-  }, [currentLanguage]);
+  // Language is now passed in options for each speak() call, no need for default language setting
 
   // Handle breaking news TTS play/pause
-  const handleBreakingNewsTTS = () => {
-    if (!Tts) {
-      alert('Text-to-speech is not available.');
-      return;
-    }
-
+  const handleBreakingNewsTTS = async () => {
     if (isBreakingNewsTTSPlaying) {
-      // Stop TTS
-      try {
-        Tts.stop();
-        setIsBreakingNewsTTSPlaying(false);
-        setCurrentBreakingNewsIndex(0);
-      } catch (error) {
-        console.error('[HomeScreen] Error stopping TTS:', error);
-      }
+      await stopBreakingNewsTTS();
     } else {
       // Stop category TTS if playing
       if (isCategoryTTSPlaying) {
         try {
-          Tts.stop();
+          await Speech.stop();
           setIsCategoryTTSPlaying(false);
           setCurrentCategoryStoryIndex(0);
         } catch (error) {
@@ -328,110 +310,88 @@ const HomeScreen = () => {
     }
   };
 
-  // Setup TTS event listeners for category stories
-  useEffect(() => {
-    if (!Tts) {
+  // Helper to read next category story (used in queue)
+  const readNextCategoryStory = React.useCallback((nextIndex) => {
+    const currentPosts = postsRef.current;
+    if (!isCategoryTTSPlayingRef.current || isTTSPlayingRef.current) {
+      setIsCategoryTTSPlaying(false);
+      setCurrentCategoryStoryIndex(0);
       return;
     }
 
-    const onCategoryTtsFinish = () => {
-      // Only handle if category TTS is playing (not breaking news)
-      if (!isCategoryTTSPlayingRef.current) {
-        return;
-      }
-      
-      setCurrentCategoryStoryIndex(prev => {
-        const nextIndex = prev + 1;
-        const currentPosts = postsRef.current;
-        const isPlaying = isCategoryTTSPlayingRef.current;
-        const currentLang = currentLanguageRef.current;
-        
-        // Get top 5 stories (excluding ads and web stories)
-        const topStories = currentPosts.filter(post => !post.isAd && !post.isWebStories).slice(0, 5);
-        
-        if (nextIndex < topStories.length && isPlaying) {
-          setTimeout(() => {
-            // Double check we're still playing category TTS
-            if (!isCategoryTTSPlayingRef.current) return;
-            
-            const item = topStories[nextIndex];
-            const title = item.title || item.headline || '';
-            const synopsis = item.synopsis || item.short_description || '';
-            
-            let textToSpeak = '';
-            
-            if (title) {
-              textToSpeak += `${title}. `;
-            }
-            
-            if (synopsis) {
-              const cleanSynopsis = stripHtml(synopsis);
-              if (cleanSynopsis) {
-                textToSpeak += `${cleanSynopsis}. `;
-              }
-            }
-            
-            if (textToSpeak.trim()) {
-              try {
-                Tts.speak(textToSpeak.trim());
-              } catch (error) {
-                console.error('[HomeScreen] Error starting category TTS:', error);
-                setIsCategoryTTSPlaying(false);
-                return prev;
-              }
-            }
-          }, 500);
-          return nextIndex;
-        } else {
-          setIsCategoryTTSPlaying(false);
-          return 0;
-        }
-      });
-    };
-
-    const onCategoryTtsStart = () => {
-      setIsCategoryTTSPlaying(true);
-    };
-
-    const onCategoryTtsCancel = () => {
+    // Get top 5 stories (excluding ads and web stories)
+    const topStories = currentPosts.filter(post => !post.isAd && !post.isWebStories).slice(0, 5);
+    
+    if (nextIndex >= topStories.length) {
       setIsCategoryTTSPlaying(false);
       setCurrentCategoryStoryIndex(0);
-    };
-
-    const onCategoryTtsError = (error) => {
-      console.error('[HomeScreen] Category TTS Error:', error);
-      setIsCategoryTTSPlaying(false);
-      setCurrentCategoryStoryIndex(0);
-    };
-
-    if (Tts.addEventListener && typeof Tts.addEventListener === 'function') {
-      try {
-        Tts.addEventListener('tts-finish', onCategoryTtsFinish);
-        Tts.addEventListener('tts-start', onCategoryTtsStart);
-        Tts.addEventListener('tts-cancel', onCategoryTtsCancel);
-        Tts.addEventListener('tts-error', onCategoryTtsError);
-      } catch (error) {
-        console.error('[HomeScreen] Error adding category TTS event listeners:', error);
-      }
+      return;
     }
 
-    return () => {
-      try {
-        if (Tts.removeEventListener && typeof Tts.removeEventListener === 'function') {
-          Tts.removeEventListener('tts-finish', onCategoryTtsFinish);
-          Tts.removeEventListener('tts-start', onCategoryTtsStart);
-          Tts.removeEventListener('tts-cancel', onCategoryTtsCancel);
-          Tts.removeEventListener('tts-error', onCategoryTtsError);
-        }
-      } catch (error) {
-        console.error('[HomeScreen] Error during category TTS cleanup:', error);
+    const item = topStories[nextIndex];
+    const title = item.title || item.headline || '';
+    const synopsis = item.synopsis || item.short_description || '';
+    
+    let textToSpeak = '';
+    
+    if (title) {
+      textToSpeak += `${title}. `;
+    }
+    
+    if (synopsis) {
+      const cleanSynopsis = stripHtml(synopsis);
+      if (cleanSynopsis) {
+        textToSpeak += `${cleanSynopsis}. `;
       }
-    };
+    }
+    
+    if (textToSpeak.trim()) {
+      try {
+        // Use en-US for better voice quality, fallback to en-IN for Indian English
+        const ttsLanguage = currentLanguageRef.current === 'hindi' ? 'hi' : 'en-US';
+        isCategoryTTSPlayingRef.current = true;
+        setIsCategoryTTSPlaying(true);
+        setCurrentCategoryStoryIndex(nextIndex);
+        
+        Speech.speak(textToSpeak.trim(), {
+          language: ttsLanguage,
+          rate: 0.95, // Fast rate optimized for news reading (close to normal speech speed)
+          pitch: 1.0, // Normal pitch
+          onStart: () => {
+            setIsCategoryTTSPlaying(true);
+          },
+          onDone: () => {
+            // Move to next item
+            if (isCategoryTTSPlayingRef.current && !isTTSPlayingRef.current) {
+              setTimeout(() => {
+                readNextCategoryStory(nextIndex + 1);
+              }, 500);
+            }
+          },
+          onError: (error) => {
+            console.error('[HomeScreen] Category TTS Error:', error);
+            setIsCategoryTTSPlaying(false);
+            setCurrentCategoryStoryIndex(0);
+          },
+          onStopped: () => {
+            setIsCategoryTTSPlaying(false);
+            setCurrentCategoryStoryIndex(0);
+          },
+        });
+      } catch (error) {
+        console.error('[HomeScreen] Error starting category TTS:', error);
+        setIsCategoryTTSPlaying(false);
+        setCurrentCategoryStoryIndex(0);
+      }
+    } else {
+      // No text, move to next
+      readNextCategoryStory(nextIndex + 1);
+    }
   }, []);
 
   // Function to read a category story
-  const readCategoryStory = (index) => {
-    if (!posts || !Tts) return;
+  const readCategoryStory = React.useCallback((index) => {
+    if (!posts) return;
 
     // Get top 5 stories (excluding ads and web stories)
     const topStories = posts.filter(post => !post.isAd && !post.isWebStories).slice(0, 5);
@@ -457,26 +417,58 @@ const HomeScreen = () => {
     
     if (textToSpeak.trim()) {
       try {
-        Tts.speak(textToSpeak.trim());
+        // Use en-US for better voice quality, fallback to en-IN for Indian English
+        const ttsLanguage = currentLanguage === 'hindi' ? 'hi' : 'en-US';
+        isCategoryTTSPlayingRef.current = true;
+        setIsCategoryTTSPlaying(true);
         setCurrentCategoryStoryIndex(index);
+        
+        Speech.speak(textToSpeak.trim(), {
+          language: ttsLanguage,
+          rate: 0.95, // Fast rate optimized for news reading (close to normal speech speed)
+          pitch: 1.0, // Normal pitch
+          onStart: () => {
+            setIsCategoryTTSPlaying(true);
+          },
+          onDone: () => {
+            // Move to next item if still playing
+            if (isCategoryTTSPlayingRef.current && !isTTSPlayingRef.current) {
+              const nextIndex = index + 1;
+              if (nextIndex < topStories.length) {
+                setTimeout(() => {
+                  readNextCategoryStory(nextIndex);
+                }, 500);
+              } else {
+                // Finished all items
+                setIsCategoryTTSPlaying(false);
+                setCurrentCategoryStoryIndex(0);
+              }
+            }
+          },
+          onError: (error) => {
+            console.error('[HomeScreen] Category TTS Error:', error);
+            setIsCategoryTTSPlaying(false);
+            setCurrentCategoryStoryIndex(0);
+          },
+          onStopped: () => {
+            setIsCategoryTTSPlaying(false);
+            setCurrentCategoryStoryIndex(0);
+          },
+        });
       } catch (error) {
         console.error('[HomeScreen] Error starting category TTS:', error);
         setIsCategoryTTSPlaying(false);
+        setCurrentCategoryStoryIndex(0);
       }
     }
-  };
+  }, [posts, currentLanguage, readNextCategoryStory]);
 
   // Handle category TTS play/pause
-  const handleCategoryTTS = () => {
-    if (!Tts) {
-      alert('Text-to-speech is not available.');
-      return;
-    }
-
+  const handleCategoryTTS = async () => {
     if (isCategoryTTSPlaying) {
       // Stop TTS
       try {
-        Tts.stop();
+        await Speech.stop();
         setIsCategoryTTSPlaying(false);
         setCurrentCategoryStoryIndex(0);
       } catch (error) {
@@ -486,9 +478,7 @@ const HomeScreen = () => {
       // Stop breaking news TTS if playing
       if (isBreakingNewsTTSPlaying) {
         try {
-          Tts.stop();
-          setIsBreakingNewsTTSPlaying(false);
-          setCurrentBreakingNewsIndex(0);
+          await stopBreakingNewsTTS();
         } catch (error) {
           console.error('[HomeScreen] Error stopping breaking news TTS:', error);
         }

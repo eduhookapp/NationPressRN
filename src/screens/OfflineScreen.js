@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONT_SIZES, SPACING } from '../config/constants';
-import { getNetworkState, isConnected } from '../services/networkService';
+import { isConnected, refreshNetworkState } from '../services/networkService';
 
 /**
  * Screen shown when internet connection is lost
@@ -32,7 +32,9 @@ const OfflineScreen = ({ onRetry, onConnectionRestored }) => {
     setRetryCount(prev => prev + 1);
 
     try {
-      const connected = await isConnected();
+      // Force refresh so subscribers update immediately
+      const state = await refreshNetworkState();
+      const connected = state.isConnected && state.isInternetReachable;
       
       if (connected) {
         console.log('[OfflineScreen] ✅ Connection restored on retry!');

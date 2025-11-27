@@ -7,18 +7,42 @@ import NetInfo from '@react-native-community/netinfo';
 let networkListeners = [];
 let currentNetworkState = null;
 
+const notifyNetworkListeners = (networkState) => {
+  networkListeners.forEach(listener => {
+    try {
+      listener(networkState);
+    } catch (error) {
+      console.error('[NetworkService] Error in network listener:', error);
+    }
+  });
+};
+
 /**
  * Get current network state
  * @returns {Promise<{isConnected: boolean, type: string, isInternetReachable: boolean}>}
  */
+const buildNetworkState = (state) => {
+  const isConnected = state.isConnected ?? false;
+  
+  // On iOS isInternetReachable can be null while NetInfo resolves reachability.
+  // Treat "unknown" as connected when the transport itself is connected so we
+  // don't incorrectly block the UI.
+  const isInternetReachable = 
+    typeof state.isInternetReachable === 'boolean'
+      ? state.isInternetReachable
+      : isConnected;
+
+  return {
+    isConnected,
+    type: state.type,
+    isInternetReachable,
+  };
+};
+
 export const getNetworkState = async () => {
   try {
     const state = await NetInfo.fetch();
-    currentNetworkState = {
-      isConnected: state.isConnected ?? false,
-      type: state.type,
-      isInternetReachable: state.isInternetReachable ?? false,
-    };
+    currentNetworkState = buildNetworkState(state);
     return currentNetworkState;
   } catch (error) {
     console.error('[NetworkService] Error fetching network state:', error);
@@ -60,22 +84,9 @@ export const subscribeToNetworkChanges = (callback) => {
 
   // Subscribe to NetInfo changes
   const unsubscribe = NetInfo.addEventListener(state => {
-    const networkState = {
-      isConnected: state.isConnected ?? false,
-      type: state.type,
-      isInternetReachable: state.isInternetReachable ?? false,
-    };
-    
+    const networkState = buildNetworkState(state);
     currentNetworkState = networkState;
-    
-    // Notify all listeners
-    networkListeners.forEach(listener => {
-      try {
-        listener(networkState);
-      } catch (error) {
-        console.error('[NetworkService] Error in network listener:', error);
-      }
-    });
+    notifyNetworkListeners(networkState);
   });
 
   // Return unsubscribe function
@@ -99,5 +110,15 @@ export const getCurrentNetworkState = () => {
  */
 export const clearNetworkListeners = () => {
   networkListeners = [];
+};
+
+/**
+ * Force refresh network state and notify listeners immediately.
+ * Useful for manual retry buttons.
+ */
+export const refreshNetworkState = async () => {
+  const state = await getNetworkState();
+  notifyNetworkListeners(state);
+  return state;
 };
 

@@ -76,6 +76,10 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "notification": {
+        "icon": "./assets/images/android-icon-foreground.png",
+        "color": "#6B2C1A"
+      },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
