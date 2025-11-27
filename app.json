@@ -36,6 +36,7 @@
       "infoPlist": {
         "UIBackgroundModes": ["remote-notification"],
         "OneSignal_suppress_launch_urls": true,
+        "NSUserTrackingUsageDescription": "This app uses your device identifier to deliver personalized ads and improve your experience. Your data is used to show relevant content and advertisements.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false,
           "NSExceptionDomains": {
