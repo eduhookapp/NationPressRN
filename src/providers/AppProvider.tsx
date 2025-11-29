@@ -1,6 +1,8 @@
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
+import * as TrackingTransparency from 'expo-tracking-transparency';
 import React, { createContext, useContext, useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
 import mobileAds from 'react-native-google-mobile-ads';
 import { LogLevel, OneSignal } from 'react-native-onesignal';
 import { DEFAULT_LANGUAGE, LANGUAGES, setApiBaseUrl } from '../config/constants';
@@ -197,16 +199,38 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   // Initialize AdMob and OneSignal
   useEffect(() => {
-    // Initialize Google AdMob
-    console.log('[AppProvider] Initializing Google AdMob...');
-    mobileAds()
-      .initialize()
-      .then(adapterStatuses => {
-        console.log('[AppProvider] AdMob initialized successfully:', adapterStatuses);
-      })
-      .catch(error => {
-        console.error('[AppProvider] AdMob initialization error:', error);
-      });
+    const initializeAds = async () => {
+      // Request App Tracking Transparency permission BEFORE initializing AdMob
+      if (Platform.OS === 'ios') {
+        try {
+          console.log('[AppProvider] Requesting App Tracking Transparency permission...');
+          const { status } = await TrackingTransparency.requestTrackingPermissionsAsync();
+          console.log('[AppProvider] Tracking permission status:', status);
+          
+          if (status === 'granted') {
+            console.log('[AppProvider] ✅ User granted tracking permission');
+          } else {
+            console.log('[AppProvider] ⚠️  User denied or restricted tracking permission');
+          }
+        } catch (error) {
+          console.error('[AppProvider] Error requesting tracking permission:', error);
+          // Continue with AdMob initialization even if permission request fails
+        }
+      }
+      
+      // Initialize Google AdMob (after requesting permission)
+      console.log('[AppProvider] Initializing Google AdMob...');
+      mobileAds()
+        .initialize()
+        .then(adapterStatuses => {
+          console.log('[AppProvider] AdMob initialized successfully:', adapterStatuses);
+        })
+        .catch(error => {
+          console.error('[AppProvider] AdMob initialization error:', error);
+        });
+    };
+    
+    initializeAds();
     
     // Initialize OneSignal
     console.log('═══════════════════════════════════════════════════════════');

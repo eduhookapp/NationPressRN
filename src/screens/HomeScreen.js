@@ -171,28 +171,28 @@ const HomeScreen = () => {
   // Function to read a single breaking news item
   const readBreakingNewsItem = React.useCallback((index) => {
     if (!breakingNews || index >= breakingNews.length) return;
-
+            
     const item = breakingNews[index];
-    const title = item.title || item.headline || '';
-    const synopsis = item.synopsis || item.short_description || '';
-    
-    let textToSpeak = '';
-    
+            const title = item.title || item.headline || '';
+            const synopsis = item.synopsis || item.short_description || '';
+            
+            let textToSpeak = '';
+            
     // Add headline
-    if (title) {
-      textToSpeak += `${title}. `;
-    }
-    
+            if (title) {
+              textToSpeak += `${title}. `;
+            }
+            
     // Add synopsis
-    if (synopsis) {
-      const cleanSynopsis = stripHtml(synopsis);
-      if (cleanSynopsis) {
-        textToSpeak += `${cleanSynopsis}. `;
-      }
-    }
-    
-    if (textToSpeak.trim()) {
-      try {
+            if (synopsis) {
+              const cleanSynopsis = stripHtml(synopsis);
+              if (cleanSynopsis) {
+                textToSpeak += `${cleanSynopsis}. `;
+              }
+            }
+            
+            if (textToSpeak.trim()) {
+              try {
         // Use en-US for better voice quality, fallback to en-IN for Indian English
         const ttsLanguage = currentLanguage === 'hindi' ? 'hi' : 'en-US';
         isTTSPlayingRef.current = true;
@@ -228,11 +228,11 @@ const HomeScreen = () => {
             resetBreakingNewsTTSState();
           },
         });
-      } catch (error) {
-        console.error('[HomeScreen] Error starting TTS:', error);
+              } catch (error) {
+                console.error('[HomeScreen] Error starting TTS:', error);
         resetBreakingNewsTTSState();
-      }
-    }
+              }
+            }
   }, [breakingNews, currentLanguage, readNextBreakingNewsItem]);
 
   // Update refs when state changes
@@ -265,7 +265,7 @@ const HomeScreen = () => {
   useFocusEffect(
     useCallback(() => {
       // Screen focused - no action needed
-      return () => {
+    return () => {
         // Screen unfocused - stop all TTS
         console.log('[HomeScreen] Screen unfocused, stopping all TTS...');
         (async () => {
@@ -275,10 +275,10 @@ const HomeScreen = () => {
               await Speech.stop();
               setIsCategoryTTSPlaying(false);
               setCurrentCategoryStoryIndex(0);
-            }
-          } catch (error) {
+        }
+      } catch (error) {
             console.error('[HomeScreen] Error stopping TTS on unfocus:', error);
-          }
+      }
         })();
       };
     }, [isCategoryTTSPlaying, stopBreakingNewsTTS])
@@ -318,39 +318,39 @@ const HomeScreen = () => {
       setCurrentCategoryStoryIndex(0);
       return;
     }
-
-    // Get top 5 stories (excluding ads and web stories)
-    const topStories = currentPosts.filter(post => !post.isAd && !post.isWebStories).slice(0, 5);
-    
+        
+        // Get top 5 stories (excluding ads and web stories)
+        const topStories = currentPosts.filter(post => !post.isAd && !post.isWebStories).slice(0, 5);
+        
     if (nextIndex >= topStories.length) {
       setIsCategoryTTSPlaying(false);
       setCurrentCategoryStoryIndex(0);
       return;
     }
-
-    const item = topStories[nextIndex];
-    const title = item.title || item.headline || '';
-    const synopsis = item.synopsis || item.short_description || '';
-    
-    let textToSpeak = '';
-    
-    if (title) {
-      textToSpeak += `${title}. `;
-    }
-    
-    if (synopsis) {
-      const cleanSynopsis = stripHtml(synopsis);
-      if (cleanSynopsis) {
-        textToSpeak += `${cleanSynopsis}. `;
-      }
-    }
-    
-    if (textToSpeak.trim()) {
-      try {
+            
+            const item = topStories[nextIndex];
+            const title = item.title || item.headline || '';
+            const synopsis = item.synopsis || item.short_description || '';
+            
+            let textToSpeak = '';
+            
+            if (title) {
+              textToSpeak += `${title}. `;
+            }
+            
+            if (synopsis) {
+              const cleanSynopsis = stripHtml(synopsis);
+              if (cleanSynopsis) {
+                textToSpeak += `${cleanSynopsis}. `;
+              }
+            }
+            
+            if (textToSpeak.trim()) {
+              try {
         // Use en-US for better voice quality, fallback to en-IN for Indian English
         const ttsLanguage = currentLanguageRef.current === 'hindi' ? 'hi' : 'en-US';
         isCategoryTTSPlayingRef.current = true;
-        setIsCategoryTTSPlaying(true);
+      setIsCategoryTTSPlaying(true);
         setCurrentCategoryStoryIndex(nextIndex);
         
         Speech.speak(textToSpeak.trim(), {
@@ -370,12 +370,12 @@ const HomeScreen = () => {
           },
           onError: (error) => {
             console.error('[HomeScreen] Category TTS Error:', error);
-            setIsCategoryTTSPlaying(false);
-            setCurrentCategoryStoryIndex(0);
+      setIsCategoryTTSPlaying(false);
+      setCurrentCategoryStoryIndex(0);
           },
           onStopped: () => {
-            setIsCategoryTTSPlaying(false);
-            setCurrentCategoryStoryIndex(0);
+      setIsCategoryTTSPlaying(false);
+      setCurrentCategoryStoryIndex(0);
           },
         });
       } catch (error) {
@@ -386,7 +386,7 @@ const HomeScreen = () => {
     } else {
       // No text, move to next
       readNextCategoryStory(nextIndex + 1);
-    }
+      }
   }, []);
 
   // Function to read a category story

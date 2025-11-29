@@ -4,17 +4,17 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    BackHandler,
-    Dimensions,
-    FlatList,
-    Platform,
-    ScrollView,
-    Share,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  BackHandler,
+  Dimensions,
+  FlatList,
+  Platform,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import AutoHeightWebView from 'react-native-autoheight-webview';
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';

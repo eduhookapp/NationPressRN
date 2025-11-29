@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
+import * as TrackingTransparency from 'expo-tracking-transparency';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Platform, View } from 'react-native';
 import mobileAds from 'react-native-google-mobile-ads';
 import { LogLevel, OneSignal } from 'react-native-onesignal';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -160,16 +161,38 @@ export default function App() {
   }, [isOnline, lastNavigationState, reloadLastPage]);
 
   useEffect(() => {
-    // Initialize Google AdMob
-    console.log('[App] Initializing Google AdMob...');
-    mobileAds()
-      .initialize()
-      .then(adapterStatuses => {
-        console.log('[App] AdMob initialized successfully:', adapterStatuses);
-      })
-      .catch(error => {
-        console.error('[App] AdMob initialization error:', error);
-      });
+    const initializeAds = async () => {
+      // Request App Tracking Transparency permission BEFORE initializing AdMob
+      if (Platform.OS === 'ios') {
+        try {
+          console.log('[App] Requesting App Tracking Transparency permission...');
+          const { status } = await TrackingTransparency.requestTrackingPermissionsAsync();
+          console.log('[App] Tracking permission status:', status);
+          
+          if (status === 'granted') {
+            console.log('[App] ✅ User granted tracking permission');
+          } else {
+            console.log('[App] ⚠️  User denied or restricted tracking permission');
+          }
+        } catch (error) {
+          console.error('[App] Error requesting tracking permission:', error);
+          // Continue with AdMob initialization even if permission request fails
+        }
+      }
+      
+      // Initialize Google AdMob (after requesting permission)
+      console.log('[App] Initializing Google AdMob...');
+      mobileAds()
+        .initialize()
+        .then(adapterStatuses => {
+          console.log('[App] AdMob initialized successfully:', adapterStatuses);
+        })
+        .catch(error => {
+          console.error('[App] AdMob initialization error:', error);
+        });
+    };
+    
+    initializeAds();
     
     // Initialize OneSignal
     console.log('═══════════════════════════════════════════════════════════');
