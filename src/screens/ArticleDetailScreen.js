@@ -298,6 +298,11 @@ const ArticleDetailScreen = ({ route }) => {
       }
     };
     loadLanguage();
+    
+    // Debug: Log ad unit ID being used
+    const adUnitId = getAdUnitId('banner', 'home');
+    console.log('[ArticleDetail] 🎯 Ad Unit ID for sticky banner:', adUnitId);
+    console.log('[ArticleDetail] 📱 Platform:', Platform.OS);
 
     // Listen for language changes
     const interval = setInterval(async () => {
@@ -1444,7 +1449,7 @@ const ArticleDetailScreen = ({ route }) => {
       
       {/* Floating TTS Button */}
       <TouchableOpacity
-        style={[styles.floatingTTSButton, { bottom: 80 + insets.bottom }]}
+        style={[styles.floatingTTSButton, { bottom: 120 + insets.bottom }]}
         onPress={handleTTS}
         activeOpacity={0.8}
       >
@@ -1456,8 +1461,8 @@ const ArticleDetailScreen = ({ route }) => {
       </TouchableOpacity>
 
       {/* Sticky Bottom Banner Ad - Only one ad per page for Families compliance */}
-      {AD_CONFIG.storiesBanner && adsLoaded.sticky && (
-        <View style={[styles.stickyAdContainer, { bottom: insets.bottom }]}>
+      {AD_CONFIG.storiesBanner && (
+        <View style={[styles.stickyAdContainer, { bottom: insets.bottom, display: adsLoaded.sticky ? 'flex' : 'none' }]}>
           {stickyAdCanClose && (
             <TouchableOpacity
               style={styles.stickyAdCloseButton}
@@ -1481,7 +1486,7 @@ const ArticleDetailScreen = ({ route }) => {
               requestNonPersonalizedAdsOnly: false,
             }}
             onAdLoaded={() => {
-              console.log('[ArticleDetail] Sticky bottom ad loaded');
+              console.log('[ArticleDetail] ✅ Sticky bottom ad loaded successfully');
               setAdsLoaded(prev => ({ ...prev, sticky: true }));
               // Enable close button after 5 seconds (Families Policy requirement)
               stickyAdTimerRef.current = setTimeout(() => {
@@ -1489,7 +1494,10 @@ const ArticleDetailScreen = ({ route }) => {
               }, 5000);
             }}
             onAdFailedToLoad={(error) => {
-              console.log('[ArticleDetail] Sticky bottom ad failed:', error);
+              console.log('[ArticleDetail] ❌ Sticky bottom ad failed to load');
+              console.log('[ArticleDetail] Error code:', error.code);
+              console.log('[ArticleDetail] Error message:', error.message);
+              console.log('[ArticleDetail] Full error:', JSON.stringify(error, null, 2));
               setAdsLoaded(prev => ({ ...prev, sticky: false }));
               if (stickyAdTimerRef.current) {
                 clearTimeout(stickyAdTimerRef.current);
@@ -1880,7 +1888,7 @@ const styles = StyleSheet.create({
   },
   floatingTTSButton: {
     position: 'absolute',
-    bottom: 80, // Position above sticky ad (50px ad height + 30px padding) - will be adjusted by insets
+    bottom: 120, // Position higher above sticky ad to avoid overlap - will be adjusted by insets
     right: SPACING.md,
     width: 56,
     height: 56,

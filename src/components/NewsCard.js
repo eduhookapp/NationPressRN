@@ -1,11 +1,9 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { formatRelativeTime, getImageUrl, truncateText } from '../utils/dateUtils';
 import { COLORS, SPACING, FONT_SIZES } from '../config/constants';
 
-const { width } = Dimensions.get('window');
-const CARD_WIDTH = width - SPACING.md * 2;
 const IMAGE_HEIGHT = 200;
 
 const NewsCard = ({ post, onPress, variant = 'default' }) => {
@@ -108,6 +106,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    flex: 1,
   },
   imageContainer: {
     width: '100%',

@@ -29,7 +29,7 @@ import { storage } from '../utils/storage';
 const logo = require('../../assets/images/logo.png');
 const logoHindi = require('../../assets/images/logo-hindi.png');
 
-const { width } = Dimensions.get('window');
+const { width: initialWidth } = Dimensions.get('window');
 
 const HomeScreen = () => {
   const router = useRouter();
@@ -41,6 +41,7 @@ const HomeScreen = () => {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [currentLanguage, setCurrentLanguage] = useState('english');
+  const [screenWidth, setScreenWidth] = useState(initialWidth);
   // Breaking news state
   const [breakingNews, setBreakingNews] = useState([]);
   const [loadingBreakingNews, setLoadingBreakingNews] = useState(false);
@@ -70,6 +71,22 @@ const HomeScreen = () => {
   
   // Interstitial ad ref
   const interstitialAdRef = useRef(null);
+  
+  // Calculate number of columns based on screen width
+  const getNumColumns = () => {
+    // For tablets/iPads (width >= 600), show 2-3 columns
+    if (screenWidth >= 600) {
+      // For very wide screens (> 900), show 3 columns
+      if (screenWidth > 900) {
+        return 3;
+      }
+      // For medium tablets, show 2 columns
+      return 2;
+    }
+    
+    // For phones, always show 1 column
+    return 1;
+  };
 
   const resetBreakingNewsTTSState = () => {
     isTTSPlayingRef.current = false;
@@ -566,6 +583,15 @@ const HomeScreen = () => {
     };
   }, []);
 
+  // Handle screen dimension changes
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenWidth(window.width);
+    });
+    
+    return () => subscription?.remove();
+  }, []);
+  
   // Load current language on mount and listen for changes
   useEffect(() => {
     const loadLanguage = async () => {
@@ -1240,6 +1266,9 @@ const HomeScreen = () => {
               if (item.isWebStories) return item.id;
               return `post-${item.id || item.shortSlug || index}`;
             }}
+            numColumns={getNumColumns()}
+            key={getNumColumns()} // Force re-render when columns change
+            columnWrapperStyle={getNumColumns() > 1 ? styles.columnWrapper : undefined}
             contentContainerStyle={styles.listContent}
             refreshControl={
               <RefreshControl
@@ -1287,7 +1316,6 @@ const HomeScreen = () => {
                       {breakingNews.map((item, index) => {
                         const imageUrl = getImageUrl(item.banner || item.featuredImage || item.featured_image);
                         const title = item.title || item.headline || '';
-                        const slug = item.shortSlug || item.slugUnique || item.slug;
                         
                         return (
                           <TouchableOpacity
@@ -1458,7 +1486,12 @@ const styles = StyleSheet.create({
     width: 200,
   },
   listContent: {
-    padding: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.md,
+  },
+  columnWrapper: {
+    gap: SPACING.md,
   },
   loadingContainer: {
     flex: 1,
@@ -1547,9 +1580,6 @@ const styles = StyleSheet.create({
     paddingLeft: SPACING.xl,
     paddingRight: SPACING.md,
     paddingVertical: SPACING.xs,
-  },
-  breakingNewsItemFirst: {
-    marginLeft: 0,
   },
   breakingNewsItem: {
     width: 280,

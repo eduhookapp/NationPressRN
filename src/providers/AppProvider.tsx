@@ -233,22 +233,57 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     initializeAds();
     
     // Initialize OneSignal
-    console.log('═══════════════════════════════════════════════════════════');
-    console.log('[AppProvider] 🚀 Initializing OneSignal...');
-    console.log('═══════════════════════════════════════════════════════════');
+    const initializeOneSignal = async () => {
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('[AppProvider] 🚀 Initializing OneSignal...');
+      console.log('═══════════════════════════════════════════════════════════');
+      
+      OneSignal.Debug.setLogLevel(LogLevel.Debug);
+      console.log('[AppProvider] ✅ OneSignal debug level set to VERBOSE');
+      
+      OneSignal.initialize('4a5d4548-9579-4d5d-958c-5819a5ea1598');
+      console.log('[AppProvider] ✅ OneSignal.initialize() called');
+      
+      // Check permission status first before requesting
+      try {
+        const hasPermission = await OneSignal.Notifications.hasPermission();
+        console.log('[AppProvider] Current notification permission status:', hasPermission);
+        
+        if (!hasPermission) {
+          // Only request permission if not already granted
+          // Use false to prevent OneSignal from showing "Open Settings" dialog automatically
+          const permissionResult = await OneSignal.Notifications.requestPermission(false);
+          console.log('[AppProvider] Permission request result:', permissionResult);
+        } else {
+          console.log('[AppProvider] ✅ Notification permission already granted');
+        }
+      } catch (error) {
+        console.error('[AppProvider] Error checking/requesting notification permission:', error);
+        // Fallback: try requesting without checking (but still use false to prevent auto dialog)
+        try {
+          await OneSignal.Notifications.requestPermission(false);
+        } catch (fallbackError) {
+          console.error('[AppProvider] Fallback permission request also failed:', fallbackError);
+        }
+      }
+      
+      // Opt in to push subscription
+      try {
+        const isOptedIn = OneSignal.User.pushSubscription.getOptedIn();
+        if (!isOptedIn) {
+          OneSignal.User.pushSubscription.optIn();
+          console.log('[AppProvider] ✅ User opted in to push notifications');
+        } else {
+          console.log('[AppProvider] ✅ User already opted in to push notifications');
+        }
+      } catch (error) {
+        console.error('[AppProvider] Error opting in to push subscription:', error);
+      }
+      
+      console.log('═══════════════════════════════════════════════════════════');
+    };
     
-    OneSignal.Debug.setLogLevel(LogLevel.Debug);
-    console.log('[AppProvider] ✅ OneSignal debug level set to VERBOSE');
-    
-    OneSignal.initialize('4a5d4548-9579-4d5d-958c-5819a5ea1598');
-    console.log('[AppProvider] ✅ OneSignal.initialize() called');
-    
-    OneSignal.Notifications.requestPermission(true);
-    console.log('[AppProvider] ✅ Notification permission requested');
-    
-    OneSignal.User.pushSubscription.optIn();
-    console.log('[AppProvider] ✅ User opted in to push notifications');
-    console.log('═══════════════════════════════════════════════════════════');
+    initializeOneSignal();
     
     // Set up notification handlers
     OneSignal.Notifications.addEventListener('click', async (event) => {

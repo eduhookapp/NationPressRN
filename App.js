@@ -207,13 +207,44 @@ export default function App() {
     OneSignal.initialize('4a5d4548-9579-4d5d-958c-5819a5ea1598');
     console.log('[App] ✅ OneSignal.initialize() called');
     
-    // Request notification permission
-    OneSignal.Notifications.requestPermission(true);
-    console.log('[App] ✅ Notification permission requested');
+    // Check permission status first before requesting
+    (async () => {
+      try {
+        const hasPermission = await OneSignal.Notifications.hasPermission();
+        console.log('[App] Current notification permission status:', hasPermission);
+        
+        if (!hasPermission) {
+          // Only request permission if not already granted
+          // Use false to prevent OneSignal from showing "Open Settings" dialog automatically
+          const permissionResult = await OneSignal.Notifications.requestPermission(false);
+          console.log('[App] Permission request result:', permissionResult);
+        } else {
+          console.log('[App] ✅ Notification permission already granted');
+        }
+      } catch (error) {
+        console.error('[App] Error checking/requesting notification permission:', error);
+        // Fallback: try requesting without checking (but still use false to prevent auto dialog)
+        try {
+          await OneSignal.Notifications.requestPermission(false);
+        } catch (fallbackError) {
+          console.error('[App] Fallback permission request also failed:', fallbackError);
+        }
+      }
+      
+      // Opt in to push subscription
+      try {
+        const isOptedIn = OneSignal.User.pushSubscription.getOptedIn();
+        if (!isOptedIn) {
+          OneSignal.User.pushSubscription.optIn();
+          console.log('[App] ✅ User opted in to push notifications');
+        } else {
+          console.log('[App] ✅ User already opted in to push notifications');
+        }
+      } catch (error) {
+        console.error('[App] Error opting in to push subscription:', error);
+      }
+    })();
     
-    // Explicitly opt-in user to push notifications
-    OneSignal.User.pushSubscription.optIn();
-    console.log('[App] ✅ User opted in to push notifications');
     console.log('═══════════════════════════════════════════════════════════');
     
     // Set up notification handlers
