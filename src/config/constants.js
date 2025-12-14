@@ -244,12 +244,14 @@ export const TAB_LABELS = {
     stories: 'Stories',
     bookmarks: 'Bookmarks',
     notifications: 'Notifications',
+    videos: 'Videos',
   },
   hindi: {
     home: 'होम',
     stories: 'कहानियां',
     bookmarks: 'बुकमार्क',
     notifications: 'सूचनाएं',
+    videos: 'वीडियो',
   },
 };
 

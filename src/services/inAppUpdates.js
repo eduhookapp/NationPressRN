@@ -6,12 +6,20 @@ let IAUUpdateKind = null;
 let IAUInstallStatus = null;
 
 try {
+  // Use dynamic import to handle module resolution issues
   const inAppUpdatesModule = require('sp-react-native-in-app-updates');
-  SpInAppUpdates = inAppUpdatesModule.default || inAppUpdatesModule;
-  IAUUpdateKind = inAppUpdatesModule.IAUUpdateKind;
-  IAUInstallStatus = inAppUpdatesModule.IAUInstallStatus;
+  
+  // Check if module is properly loaded
+  if (inAppUpdatesModule && (inAppUpdatesModule.default || inAppUpdatesModule.InAppUpdates)) {
+    SpInAppUpdates = inAppUpdatesModule.default || inAppUpdatesModule.InAppUpdates || inAppUpdatesModule;
+    IAUUpdateKind = inAppUpdatesModule.IAUUpdateKind;
+    IAUInstallStatus = inAppUpdatesModule.IAUInstallStatus;
+  } else {
+    console.warn('[InAppUpdates] Module loaded but structure is invalid');
+  }
 } catch (error) {
   console.warn('[InAppUpdates] Native module not available:', error.message);
+  // Silently fail - in-app updates are optional
 }
 
 /**

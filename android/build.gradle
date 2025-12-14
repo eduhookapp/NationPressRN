@@ -1,0 +1,62 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+  repositories {
+    google()
+    mavenCentral()
+  }
+  dependencies {
+    classpath('com.android.tools.build:gradle')
+    classpath('com.facebook.react:react-native-gradle-plugin')
+    classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')
+    classpath('com.google.gms:google-services:4.4.0')
+  }
+}
+
+allprojects {
+  repositories {
+    google()
+    mavenCentral()
+    maven { url 'https://www.jitpack.io' }
+  }
+  
+  // Resolve duplicate Glide GeneratedAppGlideModuleImpl class conflict
+  // Exclude Glide annotation processor from react-native-fast-image to prevent duplicate
+  afterEvaluate { project ->
+    if (project.name == 'react-native-fast-image') {
+      // Exclude Glide compiler from dependencies
+      project.configurations.all { configuration ->
+        configuration.exclude group: 'com.github.bumptech.glide', module: 'compiler'
+      }
+      
+      // Remove Glide annotation processor from annotation processor path
+      if (project.hasProperty('android')) {
+        def android = project.android
+        if (android.hasProperty('libraryVariants')) {
+          android.libraryVariants?.all { variant ->
+            variant.javaCompileProvider?.configure { javaCompile ->
+              if (javaCompile.options.annotationProcessorPath) {
+                javaCompile.options.annotationProcessorPath = javaCompile.options.annotationProcessorPath.filter { path ->
+                  !path.toString().contains('glide-compiler')
+                }
+              }
+            }
+          }
+        } else if (android.hasProperty('applicationVariants')) {
+          android.applicationVariants?.all { variant ->
+            variant.javaCompileProvider?.configure { javaCompile ->
+              if (javaCompile.options.annotationProcessorPath) {
+                javaCompile.options.annotationProcessorPath = javaCompile.options.annotationProcessorPath.filter { path ->
+                  !path.toString().contains('glide-compiler')
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+apply plugin: "expo-root-project"
+apply plugin: "com.facebook.react.rootproject"

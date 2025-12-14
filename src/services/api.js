@@ -636,6 +636,135 @@ export const apiService = {
         total: 0
       };
     }
+  },
+
+  // Fetch YouTube channel videos
+  // ============================================
+  // YOUTUBE CONFIGURATION
+  // ============================================
+  // 1. Get your YouTube Channel ID or Handle:
+  //    - Channel ID format: UCxxxxxxxxxxxxx (from youtube.com/channel/UC...)
+  //    - Channel Handle format: @NationPress_NP (from youtube.com/@NationPress_NP)
+  //    - You can use either format
+  //
+  // 2. Get your YouTube Data API v3 Key:
+  //    - Go to: https://console.cloud.google.com/apis/credentials
+  //    - Create a new API key or use existing one
+  //    - Enable "YouTube Data API v3" for your project
+  // ============================================
+  async fetchYouTubeVideos(channelId = null, maxResults = 50, pageToken = null) {
+    try {
+      // Configuration - Update these values
+      // You can use either channel ID (UC...) or handle (@...)
+      // Example: '@NationPress_NP' or 'UCxxxxxxxxxxxxx'
+      const YOUTUBE_CHANNEL = '@NationPress_NP'; // NationPress YouTube channel handle
+      const YOUTUBE_API_KEY = 'AIzaSyCbceXYJr81Br6toL79tCuaLDk0chXx2tA'; // YouTube Data API v3 key
+      
+      // Use provided channelId or default
+      const channel = channelId || YOUTUBE_CHANNEL;
+      
+      // Check if API key is configured
+      if (YOUTUBE_API_KEY === 'YOUR_YOUTUBE_API_KEY') {
+        console.warn('[YouTube API] ⚠️  Configuration required!');
+        console.warn('[YouTube API] Please update YOUTUBE_API_KEY in src/services/api.js');
+        return {
+          success: false,
+          error: 'YouTube API key not configured. Please set YOUTUBE_API_KEY in src/services/api.js',
+          data: [],
+          nextPageToken: null
+        };
+      }
+
+      // Determine if channel is a handle (@...) or channel ID (UC...)
+      const isHandle = channel.startsWith('@');
+      let resolvedChannelId = channel;
+      
+      // If it's a handle, first resolve it to a channel ID
+      if (isHandle) {
+        const handleName = channel.replace('@', '');
+        // Use the channels endpoint with forHandle parameter (YouTube Data API v3)
+        const resolveUrl = `https://www.googleapis.com/youtube/v3/channels?part=id&forHandle=${handleName}&key=${YOUTUBE_API_KEY}`;
+        const resolveResponse = await fetch(resolveUrl);
+        const resolveData = await resolveResponse.json();
+        
+        if (!resolveData.items || resolveData.items.length === 0) {
+          return {
+            success: false,
+            error: `Channel handle "${channel}" not found`,
+            data: [],
+            nextPageToken: null
+          };
+        }
+        
+        resolvedChannelId = resolveData.items[0].id;
+        console.log(`[YouTube API] Resolved handle "${channel}" to channel ID: ${resolvedChannelId}`);
+      }
+
+      // Get the uploads playlist ID from channel
+      const channelUrl = `https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${resolvedChannelId}&key=${YOUTUBE_API_KEY}`;
+      const channelResponse = await fetch(channelUrl);
+      const channelData = await channelResponse.json();
+
+      if (!channelData.items || channelData.items.length === 0) {
+        return {
+          success: false,
+          error: 'Channel not found',
+          data: [],
+          nextPageToken: null
+        };
+      }
+
+      const uploadsPlaylistId = channelData.items[0].contentDetails.relatedPlaylists.uploads;
+
+      // Fetch videos from the uploads playlist
+      let videosUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=${maxResults}&key=${YOUTUBE_API_KEY}`;
+      if (pageToken) {
+        videosUrl += `&pageToken=${pageToken}`;
+      }
+
+      const videosResponse = await fetch(videosUrl);
+      const videosData = await videosResponse.json();
+
+      if (!videosData.items) {
+        return {
+          success: false,
+          error: 'No videos found',
+          data: [],
+          nextPageToken: null
+        };
+      }
+
+      // Transform YouTube API response to our format
+      const videos = videosData.items.map(item => {
+        const snippet = item.snippet;
+        return {
+          id: snippet.resourceId.videoId,
+          title: snippet.title,
+          description: snippet.description,
+          thumbnail: snippet.thumbnails.high?.url || snippet.thumbnails.medium?.url || snippet.thumbnails.default?.url,
+          publishedAt: snippet.publishedAt,
+          channelTitle: snippet.channelTitle,
+          videoId: snippet.resourceId.videoId,
+        };
+      });
+
+      const result = {
+        success: true,
+        data: videos,
+        nextPageToken: videosData.nextPageToken || null,
+        total: videosData.pageInfo?.totalResults || videos.length
+      };
+
+      return result;
+    } catch (error) {
+      console.error('Error fetching YouTube videos:', error);
+      return {
+        success: false,
+        error: error.message,
+        data: [],
+        nextPageToken: null
+      };
+    }
   }
 };
 

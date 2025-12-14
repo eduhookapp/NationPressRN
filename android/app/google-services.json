@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "297922915413",
+    "project_id": "nationpress-7b557",
+    "storage_bucket": "nationpress-7b557.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:297922915413:android:a9d9dc3e9fb2341dc5b8dc",
+        "android_client_info": {
+          "package_name": "com.nationpress.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBpsQCOn1EAgnKk6XSBxBqKkJlDawGz6c4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

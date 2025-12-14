@@ -1,6 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Ionicons } from '@expo/vector-icons';
 import { COLORS, TAB_LABELS } from '../../src/config/constants';
 import { storage } from '../../src/utils/storage';
 
@@ -71,12 +71,21 @@ export default function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen
+      {/* <Tabs.Screen
         name="notifications"
         options={{
           title: getTabLabel('notifications'),
           tabBarIcon: ({ focused, color, size }) => (
             <Ionicons name={focused ? 'notifications' : 'notifications-outline'} size={size} color={color} />
+          ),
+        }}
+      /> */}
+      <Tabs.Screen
+        name="videos"
+        options={{
+          title: getTabLabel('videos'),
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? 'play-circle' : 'play-circle-outline'} size={size} color={color} />
           ),
         }}
       />
