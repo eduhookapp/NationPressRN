@@ -235,9 +235,14 @@ const ArticleDetailScreen = ({ route }) => {
   const [webViewReady, setWebViewReady] = useState({ synopsis: false, content: false, youtube: false });
   const [isTTSPlaying, setIsTTSPlaying] = useState(false);
   const [currentLanguage, setCurrentLanguage] = useState('english');
-  // Track which ads have loaded successfully (only sticky ad for Families compliance)
+  // Track which ads have loaded successfully
   const [adsLoaded, setAdsLoaded] = useState({
     sticky: false,
+    synopsis: false,
+    takeaways: false,
+    content: false,
+    pov: false,
+    faqs: false,
   });
   // Track if sticky ad can be closed (after 5 seconds for Families compliance)
   const [stickyAdCanClose, setStickyAdCanClose] = useState(false);
@@ -340,6 +345,11 @@ const ArticleDetailScreen = ({ route }) => {
     // Reset ad loaded states for new article
     setAdsLoaded({
       sticky: false,
+      synopsis: false,
+      takeaways: false,
+      content: false,
+      pov: false,
+      faqs: false,
     });
     setStickyAdCanClose(false);
     // Clear any existing timer
@@ -1155,6 +1165,25 @@ const ArticleDetailScreen = ({ route }) => {
             </View>
           )}
 
+          {/* Ad after Synopsis */}
+          {synopsis && AD_CONFIG.storiesBanner && (
+            <View style={styles.inlineAdContainer}>
+              <BannerAd
+                unitId={getAdUnitId('banner', 'home')}
+                size={BannerAdSize.BANNER}
+                requestOptions={{
+                  requestNonPersonalizedAdsOnly: false,
+                }}
+                onAdLoaded={() => {
+                  console.log('[ArticleDetail] ✅ Ad after Synopsis loaded');
+                  setAdsLoaded(prev => ({ ...prev, synopsis: true }));
+                }}
+                onAdFailedToLoad={(error) => {
+                  console.log('[ArticleDetail] ❌ Ad after Synopsis failed:', error.message);
+                }}
+              />
+            </View>
+          )}
 
           {/* Key Takeaways Section */}
           {keyTakeaways && (Array.isArray(keyTakeaways) ? keyTakeaways.length > 0 : (typeof keyTakeaways === 'string' && keyTakeaways.trim())) && (
@@ -1244,6 +1273,25 @@ const ArticleDetailScreen = ({ route }) => {
             </View>
           )}
 
+          {/* Ad after Key Takeaways */}
+          {keyTakeaways && (Array.isArray(keyTakeaways) ? keyTakeaways.length > 0 : (typeof keyTakeaways === 'string' && keyTakeaways.trim())) && AD_CONFIG.storiesBanner && (
+            <View style={styles.inlineAdContainer}>
+              <BannerAd
+                unitId={getAdUnitId('banner', 'home')}
+                size={BannerAdSize.BANNER}
+                requestOptions={{
+                  requestNonPersonalizedAdsOnly: false,
+                }}
+                onAdLoaded={() => {
+                  console.log('[ArticleDetail] ✅ Ad after Key Takeaways loaded');
+                  setAdsLoaded(prev => ({ ...prev, takeaways: true }));
+                }}
+                onAdFailedToLoad={(error) => {
+                  console.log('[ArticleDetail] ❌ Ad after Key Takeaways failed:', error.message);
+                }}
+              />
+            </View>
+          )}
 
           {/* Main Article Content */}
           {content && (
@@ -1341,6 +1389,26 @@ const ArticleDetailScreen = ({ route }) => {
             </View>
           )}
 
+          {/* Ad after Main Content */}
+          {content && AD_CONFIG.storiesBanner && (
+            <View style={styles.inlineAdContainer}>
+              <BannerAd
+                unitId={getAdUnitId('banner', 'home')}
+                size={BannerAdSize.BANNER}
+                requestOptions={{
+                  requestNonPersonalizedAdsOnly: false,
+                }}
+                onAdLoaded={() => {
+                  console.log('[ArticleDetail] ✅ Ad after Main Content loaded');
+                  setAdsLoaded(prev => ({ ...prev, content: true }));
+                }}
+                onAdFailedToLoad={(error) => {
+                  console.log('[ArticleDetail] ❌ Ad after Main Content failed:', error.message);
+                }}
+              />
+            </View>
+          )}
+
           {/* Spacing after content and before Point of View */}
           {pointOfView && <View style={{ height: SPACING.xl }} />}
 
@@ -1368,6 +1436,25 @@ const ArticleDetailScreen = ({ route }) => {
             </View>
           )}
 
+          {/* Ad after Point of View */}
+          {pointOfView && AD_CONFIG.storiesBanner && (
+            <View style={styles.inlineAdContainer}>
+              <BannerAd
+                unitId={getAdUnitId('banner', 'home')}
+                size={BannerAdSize.BANNER}
+                requestOptions={{
+                  requestNonPersonalizedAdsOnly: false,
+                }}
+                onAdLoaded={() => {
+                  console.log('[ArticleDetail] ✅ Ad after Point of View loaded');
+                  setAdsLoaded(prev => ({ ...prev, pov: true }));
+                }}
+                onAdFailedToLoad={(error) => {
+                  console.log('[ArticleDetail] ❌ Ad after Point of View failed:', error.message);
+                }}
+              />
+            </View>
+          )}
 
           {/* FAQs Section */}
           {faqs && Array.isArray(faqs) && faqs.length > 0 && (
@@ -1390,6 +1477,25 @@ const ArticleDetailScreen = ({ route }) => {
             </View>
           )}
 
+          {/* Ad after FAQs */}
+          {faqs && Array.isArray(faqs) && faqs.length > 0 && AD_CONFIG.storiesBanner && (
+            <View style={styles.inlineAdContainer}>
+              <BannerAd
+                unitId={getAdUnitId('banner', 'home')}
+                size={BannerAdSize.BANNER}
+                requestOptions={{
+                  requestNonPersonalizedAdsOnly: false,
+                }}
+                onAdLoaded={() => {
+                  console.log('[ArticleDetail] ✅ Ad after FAQs loaded');
+                  setAdsLoaded(prev => ({ ...prev, faqs: true }));
+                }}
+                onAdFailedToLoad={(error) => {
+                  console.log('[ArticleDetail] ❌ Ad after FAQs failed:', error.message);
+                }}
+              />
+            </View>
+          )}
 
           {/* Tags Section */}
           {metaKeywords && (
