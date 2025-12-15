@@ -307,3 +307,13 @@ export const FONT_SIZES = {
   title: 24
 };
 
+// YouTube Playlist Configuration
+// To get playlist IDs:
+// 1. Go to your YouTube playlist
+// 2. The playlist ID is in the URL: youtube.com/playlist?list=PLAYLIST_ID_HERE
+// 3. Or use YouTube Data API to fetch playlists from your channel
+export const YOUTUBE_PLAYLISTS = {
+  english: 'PLE7-Ow2Iv5BEQaQCG8QxDs7Bfqmyg2Lki', // Set this to your English News playlist ID (e.g., 'PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
+  hindi: 'PLE7-Ow2Iv5BHPNJNxDJ2tKCo4BtiYjA6F',   // Set this to your Hindi News playlist ID (e.g., 'PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
+};
+

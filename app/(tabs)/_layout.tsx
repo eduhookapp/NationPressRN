@@ -71,7 +71,7 @@ export default function TabLayout() {
           ),
         }}
       />
-      {/* <Tabs.Screen
+      <Tabs.Screen
         name="notifications"
         options={{
           title: getTabLabel('notifications'),
@@ -79,7 +79,7 @@ export default function TabLayout() {
             <Ionicons name={focused ? 'notifications' : 'notifications-outline'} size={size} color={color} />
           ),
         }}
-      /> */}
+      />
       <Tabs.Screen
         name="videos"
         options={{

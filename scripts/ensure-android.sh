@@ -16,15 +16,10 @@ else
 fi
 
 # Ensure local.properties exists with Android SDK path
+ANDROID_SDK_PATH="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+
 if [ ! -f "android/local.properties" ]; then
   echo "Creating android/local.properties..."
-  ANDROID_SDK_PATH="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
-  
-  # Try common SDK locations
-  if [ ! -d "$ANDROID_SDK_PATH" ]; then
-    ANDROID_SDK_PATH="/Users/fuel/Library/Android/sdk"
-  fi
-  
   if [ -d "$ANDROID_SDK_PATH" ]; then
     echo "sdk.dir=$ANDROID_SDK_PATH" > android/local.properties
     echo "✓ Created android/local.properties with SDK path: $ANDROID_SDK_PATH"
@@ -33,6 +28,14 @@ if [ ! -f "android/local.properties" ]; then
     echo "   Expected path: $ANDROID_SDK_PATH"
   fi
 else
+  # Check if local.properties has the correct path
+  CURRENT_SDK_PATH=$(grep "^sdk.dir=" android/local.properties | cut -d'=' -f2)
+  if [ "$CURRENT_SDK_PATH" != "$ANDROID_SDK_PATH" ] && [ -d "$ANDROID_SDK_PATH" ]; then
+    echo "Updating android/local.properties with correct SDK path..."
+    echo "sdk.dir=$ANDROID_SDK_PATH" > android/local.properties
+    echo "✓ Updated android/local.properties with SDK path: $ANDROID_SDK_PATH"
+else
   echo "✓ android/local.properties already exists"
+  fi
 fi
 

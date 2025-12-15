@@ -1,26 +1,26 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  RefreshControl,
-  ActivityIndicator,
-  TouchableOpacity,
-  Dimensions,
-  Modal,
-  Platform,
-} from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter, useSegments } from 'expo-router';
-import { WebView } from 'react-native-webview';
-import { Ionicons } from '@expo/vector-icons';
-import { apiService } from '../services/api';
-import { storage } from '../utils/storage';
-import { COLORS, SPACING, FONT_SIZES, TAB_LABELS } from '../config/constants';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Dimensions,
+  FlatList,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import YoutubePlayer from 'react-native-youtube-iframe';
 import Header from '../components/Header';
+import { COLORS, FONT_SIZES, SPACING, TAB_LABELS, YOUTUBE_PLAYLISTS } from '../config/constants';
+import { apiService } from '../services/api';
 import { formatRelativeTime } from '../utils/dateUtils';
+import { storage } from '../utils/storage';
 
 const { width } = Dimensions.get('window');
 
@@ -39,13 +39,13 @@ const VideosScreen = () => {
   const [nextPageToken, setNextPageToken] = useState(null);
   const [hasMore, setHasMore] = useState(true);
   const [currentLanguage, setCurrentLanguage] = useState('english');
+  const [activePlaylistTab, setActivePlaylistTab] = useState('english'); // 'english' or 'hindi'
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [videoModalVisible, setVideoModalVisible] = useState(false);
-  const webViewRef = useRef(null);
+  const [playing, setPlaying] = useState(false);
 
   useEffect(() => {
     loadLanguage();
-    loadVideos();
     
     // Listen for language changes
     const interval = setInterval(async () => {
@@ -58,16 +58,36 @@ const VideosScreen = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Update playlist tab when language changes
+  useEffect(() => {
+    const newPlaylistTab = currentLanguage === 'hindi' ? 'hindi' : 'english';
+    if (newPlaylistTab !== activePlaylistTab) {
+      setActivePlaylistTab(newPlaylistTab);
+      setVideos([]);
+      setNextPageToken(null);
+      setHasMore(true);
+      // Directly load videos with the new tab value
+      loadVideos(null, false, newPlaylistTab);
+    }
+  }, [currentLanguage]);
+
   const loadLanguage = async () => {
     try {
       const language = await storage.getLanguage();
-      setCurrentLanguage(language || 'english');
+      const lang = language || 'english';
+      setCurrentLanguage(lang);
+      // Set initial playlist tab based on language and load videos
+      const initialPlaylistTab = lang === 'hindi' ? 'hindi' : 'english';
+      setActivePlaylistTab(initialPlaylistTab);
+      loadVideos(null, false, initialPlaylistTab);
     } catch (error) {
       console.error('Error loading language:', error);
+      // On error, still load videos with default tab
+      loadVideos(null, false, 'english');
     }
   };
 
-  const loadVideos = async (pageToken = null, append = false) => {
+  const loadVideos = async (pageToken = null, append = false, playlistTab = null) => {
     try {
       if (!append) {
         setLoading(true);
@@ -75,7 +95,23 @@ const VideosScreen = () => {
         setLoadingMore(true);
       }
 
-      const result = await apiService.fetchYouTubeVideos(null, 20, pageToken);
+      // Use provided playlistTab or current activePlaylistTab
+      // We need to use a function to get the latest state value
+      const currentPlaylistTab = playlistTab || activePlaylistTab;
+      
+      // Get playlist ID for active tab
+      const playlistId = YOUTUBE_PLAYLISTS[currentPlaylistTab];
+      
+      console.log('[VideosScreen] Loading videos for playlist tab:', currentPlaylistTab, 'Playlist ID:', playlistId);
+      
+      let result;
+      if (playlistId) {
+        // Fetch from specific playlist
+        result = await apiService.fetchYouTubePlaylistVideos(playlistId, 20, pageToken);
+      } else {
+        // Fallback to channel uploads if playlist not configured
+        result = await apiService.fetchYouTubeVideos(null, 20, pageToken);
+      }
 
       if (result.success) {
         if (append) {
@@ -105,27 +141,96 @@ const VideosScreen = () => {
     setRefreshing(true);
     setNextPageToken(null);
     setHasMore(true);
-    loadVideos(null, false);
+    // Pass the current activePlaylistTab to ensure we use the latest value
+    loadVideos(null, false, activePlaylistTab);
   };
 
   const loadMore = () => {
     if (!loadingMore && hasMore && nextPageToken) {
-      loadVideos(nextPageToken, true);
+      // Pass the current activePlaylistTab to ensure we use the latest value
+      loadVideos(nextPageToken, true, activePlaylistTab);
     }
   };
 
   const handleVideoPress = (video) => {
     setSelectedVideo(video);
     setVideoModalVisible(true);
+    setPlaying(true);
   };
 
   const closeVideoModal = () => {
+    setPlaying(false);
     setVideoModalVisible(false);
     setSelectedVideo(null);
   };
 
+  const onStateChange = useCallback((state) => {
+    if (state === 'ended') {
+      setPlaying(false);
+    }
+  }, []);
+
   const getTabLabel = (key) => {
     return TAB_LABELS[currentLanguage]?.[key] || TAB_LABELS.english[key];
+  };
+
+  const handlePlaylistTabChange = (tab) => {
+    if (tab !== activePlaylistTab) {
+      setActivePlaylistTab(tab);
+      setVideos([]);
+      setNextPageToken(null);
+      setHasMore(true);
+      // Directly load videos with the new tab value
+      loadVideos(null, false, tab);
+    }
+  };
+
+  const renderPlaylistTabs = () => {
+    return (
+      <View style={styles.playlistTabsContainer}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.playlistTabsScroll}
+        >
+          <TouchableOpacity
+            style={[
+              styles.playlistTab,
+              activePlaylistTab === 'english' && styles.playlistTabActive
+            ]}
+            onPress={() => handlePlaylistTabChange('english')}
+            activeOpacity={0.7}
+          >
+            <Text
+              style={[
+                styles.playlistTabText,
+                activePlaylistTab === 'english' && styles.playlistTabTextActive
+              ]}
+            >
+              English News
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[
+              styles.playlistTab,
+              activePlaylistTab === 'hindi' && styles.playlistTabActive
+            ]}
+            onPress={() => handlePlaylistTabChange('hindi')}
+            activeOpacity={0.7}
+          >
+            <Text
+              style={[
+                styles.playlistTabText,
+                activePlaylistTab === 'hindi' && styles.playlistTabTextActive
+              ]}
+            >
+              Hindi News
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+    );
   };
 
   const renderVideoItem = ({ item, index }) => {
@@ -206,6 +311,8 @@ const VideosScreen = () => {
         showLanguageSelector={false}
       />
       
+      {renderPlaylistTabs()}
+      
       {loading && videos.length === 0 ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
@@ -262,53 +369,25 @@ const VideosScreen = () => {
           
           {selectedVideo && (
             <View style={styles.videoPlayerContainer}>
-              <WebView
-                ref={webViewRef}
-                source={{
-                  html: `
-                    <!DOCTYPE html>
-                    <html>
-                      <head>
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                        <style>
-                          body {
-                            margin: 0;
-                            padding: 0;
-                            background: #000;
-                            display: flex;
-                            justify-content: center;
-                            align-items: center;
-                            height: 100vh;
-                          }
-                          iframe {
-                            width: 100%;
-                            height: 100%;
-                          }
-                        </style>
-                      </head>
-                      <body>
-                        <iframe
-                          src="https://www.youtube.com/embed/${selectedVideo.videoId}?rel=0&modestbranding=1&playsinline=1"
-                          frameborder="0"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowfullscreen
-                        ></iframe>
-                      </body>
-                    </html>
-                  `
+              <YoutubePlayer
+                height={width * 9 / 16}
+                width={width}
+                play={playing}
+                videoId={selectedVideo.videoId}
+                onChangeState={onStateChange}
+                initialPlayerParams={{
+                  preventFullScreen: false,
+                  modestbranding: true,
+                  rel: false,
+                  showClosedCaptions: false,
                 }}
-                style={styles.videoWebView}
-                allowsInlineMediaPlayback
-                mediaPlaybackRequiresUserAction={false}
-                javaScriptEnabled={true}
-                domStorageEnabled={false}
-                onError={(syntheticEvent) => {
-                  const { nativeEvent } = syntheticEvent;
-                  console.error('YouTube WebView error:', nativeEvent);
-                }}
-                onHttpError={(syntheticEvent) => {
-                  const { nativeEvent } = syntheticEvent;
-                  console.error('YouTube WebView HTTP error:', nativeEvent);
+                webViewProps={{
+                  allowsInlineMediaPlayback: true,
+                  mediaPlaybackRequiresUserAction: false,
+                  androidHardwareAccelerationDisabled: false,
+                  androidLayerType: 'hardware',
+                  bounces: false,
+                  overScrollMode: 'never',
                 }}
               />
             </View>
@@ -441,10 +520,38 @@ const styles = StyleSheet.create({
   videoPlayerContainer: {
     flex: 1,
     backgroundColor: '#000',
+    justifyContent: 'center',
   },
-  videoWebView: {
-    flex: 1,
-    backgroundColor: '#000',
+  playlistTabsContainer: {
+    backgroundColor: COLORS.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  playlistTabsScroll: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+  },
+  playlistTab: {
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    marginRight: SPACING.sm,
+    borderRadius: 20,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  playlistTabActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  playlistTabText: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '500',
+    color: COLORS.text,
+  },
+  playlistTabTextActive: {
+    color: '#ffffff',
+    fontWeight: '600',
   },
 });
 

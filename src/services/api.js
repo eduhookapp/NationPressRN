@@ -765,6 +765,83 @@ export const apiService = {
         nextPageToken: null
       };
     }
+  },
+
+  // Fetch videos from a specific YouTube playlist
+  async fetchYouTubePlaylistVideos(playlistId, maxResults = 50, pageToken = null) {
+    try {
+      const YOUTUBE_API_KEY = 'AIzaSyCbceXYJr81Br6toL79tCuaLDk0chXx2tA'; // YouTube Data API v3 key
+      
+      // Check if API key is configured
+      if (YOUTUBE_API_KEY === 'YOUR_YOUTUBE_API_KEY') {
+        console.warn('[YouTube API] ⚠️  Configuration required!');
+        console.warn('[YouTube API] Please update YOUTUBE_API_KEY in src/services/api.js');
+        return {
+          success: false,
+          error: 'YouTube API key not configured. Please set YOUTUBE_API_KEY in src/services/api.js',
+          data: [],
+          nextPageToken: null
+        };
+      }
+
+      if (!playlistId) {
+        return {
+          success: false,
+          error: 'Playlist ID is required',
+          data: [],
+          nextPageToken: null
+        };
+      }
+
+      // Fetch videos from the specified playlist
+      let videosUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${playlistId}&maxResults=${maxResults}&key=${YOUTUBE_API_KEY}`;
+      if (pageToken) {
+        videosUrl += `&pageToken=${pageToken}`;
+      }
+
+      const videosResponse = await fetch(videosUrl);
+      const videosData = await videosResponse.json();
+
+      if (!videosData.items || videosData.items.length === 0) {
+        return {
+          success: false,
+          error: 'No videos found in playlist',
+          data: [],
+          nextPageToken: null
+        };
+      }
+
+      // Transform YouTube API response to our format
+      const videos = videosData.items.map(item => {
+        const snippet = item.snippet;
+        return {
+          id: snippet.resourceId.videoId,
+          title: snippet.title,
+          description: snippet.description,
+          thumbnail: snippet.thumbnails.high?.url || snippet.thumbnails.medium?.url || snippet.thumbnails.default?.url,
+          publishedAt: snippet.publishedAt,
+          channelTitle: snippet.channelTitle,
+          videoId: snippet.resourceId.videoId,
+        };
+      });
+
+      const result = {
+        success: true,
+        data: videos,
+        nextPageToken: videosData.nextPageToken || null,
+        total: videosData.pageInfo?.totalResults || videos.length
+      };
+
+      return result;
+    } catch (error) {
+      console.error('Error fetching YouTube playlist videos:', error);
+      return {
+        success: false,
+        error: error.message,
+        data: [],
+        nextPageToken: null
+      };
+    }
   }
 };
 

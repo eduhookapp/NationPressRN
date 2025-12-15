@@ -4,17 +4,17 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  BackHandler,
-  Dimensions,
-  FlatList,
-  Platform,
-  ScrollView,
-  Share,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    BackHandler,
+    Dimensions,
+    FlatList,
+    Platform,
+    ScrollView,
+    Share,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import AutoHeightWebView from 'react-native-autoheight-webview';
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
@@ -991,22 +991,31 @@ const ArticleDetailScreen = ({ route }) => {
                   </head>
                   <body>
                     <iframe
-                      src="https://www.youtube.com/embed/${youtubeVideoId}?rel=0&modestbranding=1"
+                      id="youtube-player"
+                      src="https://www.youtube.com/embed/${youtubeVideoId}?rel=0&modestbranding=1&playsinline=1&enablejsapi=1"
                       frameborder="0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                       allowfullscreen
                     ></iframe>
                   </body>
                 </html>
               ` }}
               style={styles.youtubeWebView}
-              allowsInlineMediaPlayback
+              allowsInlineMediaPlayback={true}
               mediaPlaybackRequiresUserAction={false}
               javaScriptEnabled={true}
-              domStorageEnabled={false}
+              domStorageEnabled={true}
+              allowsAirPlayForMediaPlayback={true}
+              allowsProtectedMedia={true}
+              startInLoadingState={true}
+              mixedContentMode="always"
               onError={(syntheticEvent) => {
                 const { nativeEvent } = syntheticEvent;
                 console.error('YouTube WebView error:', nativeEvent);
+                // Error 153 is a YouTube configuration error
+                if (nativeEvent.description && nativeEvent.description.includes('153')) {
+                  console.error('Error 153: Video player configuration error. Check iframe parameters and WebView settings.');
+                }
                 // Log to crash logger if available
                 if (global.crashLogger) {
                   global.crashLogger.logError('YouTube WebView error', JSON.stringify(nativeEvent));
@@ -1015,6 +1024,13 @@ const ArticleDetailScreen = ({ route }) => {
               onHttpError={(syntheticEvent) => {
                 const { nativeEvent } = syntheticEvent;
                 console.error('YouTube WebView HTTP error:', nativeEvent);
+                if (nativeEvent.statusCode === 153 || (nativeEvent.description && nativeEvent.description.includes('153'))) {
+                  console.error('Error 153: Video player configuration error.');
+                }
+              }}
+              onMessage={(event) => {
+                // Handle messages from YouTube iframe
+                console.log('YouTube WebView message:', event.nativeEvent.data);
               }}
               onRenderProcessGone={(syntheticEvent) => {
                 const { nativeEvent } = syntheticEvent;
