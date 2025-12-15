@@ -4,17 +4,17 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    BackHandler,
-    Dimensions,
-    FlatList,
-    Platform,
-    ScrollView,
-    Share,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  BackHandler,
+  Dimensions,
+  FlatList,
+  Platform,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import AutoHeightWebView from 'react-native-autoheight-webview';
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
@@ -229,7 +229,6 @@ const ArticleDetailScreen = ({ route }) => {
   const [post, setPost] = useState(initialPost || null);
   const [relatedPosts, setRelatedPosts] = useState([]);
   const [loading, setLoading] = useState(!initialPost);
-  const [synopsisHeight, setSynopsisHeight] = useState(100);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [imageAspectRatio, setImageAspectRatio] = useState(16 / 9);
   const [webViewReady, setWebViewReady] = useState({ synopsis: false, content: false, youtube: false });
@@ -339,7 +338,6 @@ const ArticleDetailScreen = ({ route }) => {
     // Reset all states when slug changes (new article) or reloadKey changes (force reload)
     const reloadKey = route.params?.reloadKey;
     setWebViewReady({ synopsis: false, content: false, youtube: false });
-    setSynopsisHeight(100);
     setRelatedPosts([]);
     isNavigatingRef.current = false; // Reset navigation flag
     // Reset ad loaded states for new article
@@ -390,7 +388,6 @@ const ArticleDetailScreen = ({ route }) => {
       // Reset states on unmount to prevent memory leaks
       if (isMountedRef.current) {
         setWebViewReady({ synopsis: false, content: false, youtube: false });
-        setSynopsisHeight(100);
       }
       // Stop TTS if playing
       try {
@@ -1088,22 +1085,38 @@ const ArticleDetailScreen = ({ route }) => {
               <View style={styles.synopsisContainer}>
                 {synopsis.includes('<') ? (
                   webViewReady.synopsis ? (
-                    <WebView
+                    <AutoHeightWebView
                     key={`synopsis-${post?.id || 'unknown'}`}
-                    originWhitelist={['*']}
                     source={{ html: `
                       <!DOCTYPE html>
                       <html>
                         <head>
                           <meta name="viewport" content="width=device-width, initial-scale=1.0">
                           <style>
+                            * {
+                              margin: 0;
+                              padding: 0;
+                              box-sizing: border-box;
+                            }
+                            html, body {
+                              width: 100%;
+                              background-color: #f8f9fa;
+                            }
                             body {
                               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                               font-size: 15px;
                               line-height: 1.6;
                               color: #333;
                               margin: 0;
-                              padding: 0;
+                              padding: 8px;
+                              word-wrap: break-word;
+                              overflow-wrap: break-word;
+                            }
+                            p {
+                              margin-bottom: 12px;
+                            }
+                            p:last-child {
+                              margin-bottom: 0;
                             }
                             b, strong {
                               font-weight: 700;
@@ -1114,46 +1127,35 @@ const ArticleDetailScreen = ({ route }) => {
                         <body>${(synopsis || '').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\*(.*?)\*/g, '<b>$1</b>')}</body>
                       </html>
                     ` }}
-                  style={[styles.webView, { height: Math.max(100, synopsisHeight) }]}
-                  scrollEnabled={false}
-                  javaScriptEnabled={true}
-                  domStorageEnabled={false}
-                  onError={(syntheticEvent) => {
-                    const { nativeEvent } = syntheticEvent;
-                    console.error('Synopsis WebView error:', nativeEvent);
-                    if (global.crashLogger) {
-                      global.crashLogger.logError('Synopsis WebView error', JSON.stringify(nativeEvent));
-                    }
-                  }}
-                  onHttpError={(syntheticEvent) => {
-                    const { nativeEvent } = syntheticEvent;
-                    console.error('Synopsis WebView HTTP error:', nativeEvent);
-                  }}
-                  onRenderProcessGone={(syntheticEvent) => {
-                    const { nativeEvent } = syntheticEvent;
-                    console.error('Synopsis WebView render process crashed:', nativeEvent);
-                    if (global.crashLogger) {
-                      global.crashLogger.logError('Synopsis WebView render process crashed', JSON.stringify(nativeEvent));
-                    }
-                  }}
-                  onMessage={(event) => {
-                    try {
-                      const height = parseInt(event.nativeEvent.data);
-                      if (height > 0 && !isNaN(height)) setSynopsisHeight(height + 20);
-                    } catch (error) {
-                      console.error('Error parsing synopsis height:', error);
-                    }
-                  }}
-                  injectedJavaScript={`
-                    setTimeout(() => {
-                      try {
-                        window.ReactNativeWebView.postMessage(document.body.scrollHeight);
-                      } catch(e) {
-                        window.ReactNativeWebView.postMessage('0');
+                    style={styles.synopsisWebView}
+                    customStyle={`
+                      body {
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                        background-color: #f8f9fa;
                       }
-                    }, 100);
-                    true;
-                  `}
+                    `}
+                    scrollEnabled={false}
+                    showsVerticalScrollIndicator={false}
+                    javaScriptEnabled={true}
+                    domStorageEnabled={false}
+                    onError={(syntheticEvent) => {
+                      const { nativeEvent } = syntheticEvent;
+                      console.error('Synopsis WebView error:', nativeEvent);
+                      if (global.crashLogger) {
+                        global.crashLogger.logError('Synopsis WebView error', JSON.stringify(nativeEvent));
+                      }
+                    }}
+                    onHttpError={(syntheticEvent) => {
+                      const { nativeEvent } = syntheticEvent;
+                      console.error('Synopsis WebView HTTP error:', nativeEvent);
+                    }}
+                    onRenderProcessGone={(syntheticEvent) => {
+                      const { nativeEvent } = syntheticEvent;
+                      console.error('Synopsis WebView render process crashed:', nativeEvent);
+                      if (global.crashLogger) {
+                        global.crashLogger.logError('Synopsis WebView render process crashed', JSON.stringify(nativeEvent));
+                      }
+                    }}
                   />
                   ) : (
                     <ActivityIndicator size="small" color={COLORS.primary} />
@@ -1763,6 +1765,11 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     lineHeight: 22,
   },
+  synopsisWebView: {
+    width: '100%',
+    backgroundColor: COLORS.surface,
+    borderRadius: 8,
+  },
   takeawaysContainer: {
     backgroundColor: COLORS.surface,
     padding: SPACING.md,
@@ -1939,6 +1946,9 @@ const styles = StyleSheet.create({
   webView: {
     width: width - SPACING.md * 2,
     minHeight: 100,
+    backgroundColor: COLORS.surface,
+    borderRadius: 8,
+    overflow: 'hidden',
   },
   textContent: {
     fontSize: FONT_SIZES.md,

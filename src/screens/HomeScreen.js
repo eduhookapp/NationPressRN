@@ -663,8 +663,9 @@ const HomeScreen = () => {
   // Insert ads and web stories sections in the list
   const getDataWithAds = (postsArray) => {
     const result = [];
-    let adInserted = false;
     let webStoriesInserted = false;
+    let adCount = 0;
+    const AD_INTERVAL = 5; // Insert ad after every 5 posts
     
     postsArray.forEach((post, index) => {
       result.push(post);
@@ -678,15 +679,26 @@ const HomeScreen = () => {
         }
       }
       
-      // Add only ONE ad after the 3rd item (Families Policy: only one ad per page)
-      // But only if web stories weren't inserted (to avoid too many sections)
-      if (AD_CONFIG.storiesBanner && !adInserted && (index + 1) === 3 && !webStoriesInserted) {
-        result.push({ isAd: true, id: `ad-${index}` });
-        adInserted = true;
-      } else if (AD_CONFIG.storiesBanner && !adInserted && (index + 1) === 4 && webStoriesInserted) {
-        // If web stories were inserted at position 3, add ad at position 4
-        result.push({ isAd: true, id: `ad-${index}` });
-        adInserted = true;
+      // Insert ads periodically after every AD_INTERVAL posts
+      // Start inserting ads after the 3rd post (or 4th if web stories were inserted)
+      if (AD_CONFIG.storiesBanner) {
+        const firstAdPosition = webStoriesInserted ? 4 : 3;
+        const currentPosition = index + 1;
+        
+        // Insert first ad after 3rd (or 4th if web stories) post
+        if (currentPosition === firstAdPosition) {
+          result.push({ isAd: true, id: `ad-${adCount}-${index}` });
+          adCount++;
+        }
+        // Then insert ads every AD_INTERVAL posts after the first ad
+        else if (currentPosition > firstAdPosition) {
+          const positionFromFirstAd = currentPosition - firstAdPosition;
+          // Insert ad after every AD_INTERVAL posts
+          if (positionFromFirstAd % AD_INTERVAL === 0) {
+            result.push({ isAd: true, id: `ad-${adCount}-${index}` });
+            adCount++;
+          }
+        }
       }
     });
     return result;
