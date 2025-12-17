@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { formatRelativeTime, getImageUrl, truncateText } from '../utils/dateUtils';
 import { COLORS, SPACING, FONT_SIZES } from '../config/constants';
 
 const IMAGE_HEIGHT = 200;
+const FALLBACK_IMAGE = require('../../assets/images/nation-press.webp');
 
 const NewsCard = ({ post, onPress, variant = 'default' }) => {
   const imageUrl = getImageUrl(post.banner || post.featuredImage || post.featured_image);
@@ -12,6 +13,12 @@ const NewsCard = ({ post, onPress, variant = 'default' }) => {
   const description = truncateText(post.description || post.excerpt || '', 120);
   const date = formatRelativeTime(post.storyAt || post.story_at || post.publishedAt);
   const category = post.category || 'News';
+  const [imageLoadError, setImageLoadError] = useState(false);
+
+  // Reset image error state when imageUrl changes
+  useEffect(() => {
+    setImageLoadError(false);
+  }, [imageUrl]);
 
   // Ensure onPress is always a function
   const handlePress = onPress || (() => {});
@@ -24,7 +31,7 @@ const NewsCard = ({ post, onPress, variant = 'default' }) => {
         activeOpacity={0.7}
       >
         <View style={styles.horizontalImageContainer}>
-          {imageUrl ? (
+          {imageUrl && !imageLoadError ? (
             <Image
               source={{ uri: imageUrl }}
               style={styles.horizontalImage}
@@ -34,9 +41,17 @@ const NewsCard = ({ post, onPress, variant = 'default' }) => {
               cachePolicy="memory-disk"
               recyclingKey={imageUrl}
               priority="low"
+              onError={() => {
+                setImageLoadError(true);
+              }}
             />
           ) : (
-            <View style={[styles.horizontalImage, styles.placeholder]} />
+            <Image
+              source={FALLBACK_IMAGE}
+              style={styles.horizontalImage}
+              contentFit="cover"
+              transition={200}
+            />
           )}
           <View style={styles.categoryBadge}>
             <Text style={styles.categoryBadgeText}>{category}</Text>
@@ -62,7 +77,7 @@ const NewsCard = ({ post, onPress, variant = 'default' }) => {
       activeOpacity={0.7}
     >
       <View style={styles.imageContainer}>
-        {imageUrl ? (
+        {imageUrl && !imageLoadError ? (
           <Image
             source={{ uri: imageUrl }}
             style={styles.image}
@@ -72,9 +87,17 @@ const NewsCard = ({ post, onPress, variant = 'default' }) => {
             cachePolicy="memory-disk"
             recyclingKey={imageUrl}
             priority="low"
+            onError={() => {
+              setImageLoadError(true);
+            }}
           />
         ) : (
-          <View style={[styles.image, styles.placeholder]} />
+          <Image
+            source={FALLBACK_IMAGE}
+            style={styles.image}
+            contentFit="cover"
+            transition={200}
+          />
         )}
         <View style={styles.categoryBadge}>
           <Text style={styles.categoryBadgeText}>{category}</Text>

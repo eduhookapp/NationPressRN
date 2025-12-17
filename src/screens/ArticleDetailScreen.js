@@ -28,6 +28,9 @@ import { apiService } from '../services/api';
 import { formatIndianDate, getImageUrl, stripHtml } from '../utils/dateUtils';
 import { storage } from '../utils/storage';
 
+// Fallback image
+const FALLBACK_IMAGE = require('../../assets/images/nation-press.webp');
+
 // Helper to strip HTML but preserve spaces (doesn't trim)
 const stripHtmlPreserveSpaces = (html) => {
   if (!html) return '';
@@ -231,6 +234,7 @@ const ArticleDetailScreen = ({ route }) => {
   const [loading, setLoading] = useState(!initialPost);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [imageAspectRatio, setImageAspectRatio] = useState(16 / 9);
+  const [imageLoadError, setImageLoadError] = useState(false);
   const [webViewReady, setWebViewReady] = useState({ synopsis: false, content: false, youtube: false });
   const [isTTSPlaying, setIsTTSPlaying] = useState(false);
   const [currentLanguage, setCurrentLanguage] = useState('english');
@@ -340,6 +344,7 @@ const ArticleDetailScreen = ({ route }) => {
     setWebViewReady({ synopsis: false, content: false, youtube: false });
     setRelatedPosts([]);
     isNavigatingRef.current = false; // Reset navigation flag
+    setImageLoadError(false); // Reset image error state for new article
     // Reset ad loaded states for new article
     setAdsLoaded({
       sticky: false,
@@ -439,6 +444,7 @@ const ArticleDetailScreen = ({ route }) => {
       const postContent = post.contentUnique || post.content || post.body || '';
       console.log('ArticleDetailScreen: Post content length:', postContent.length);
       setWebViewReady({ synopsis: false, content: false, youtube: false });
+      setImageLoadError(false); // Reset image error state for new post
     }
   }, [post?.id]);
 
@@ -1053,7 +1059,7 @@ const ArticleDetailScreen = ({ route }) => {
               <ActivityIndicator size="large" color={COLORS.primary} />
             </View>
           )
-        ) : imageUrl ? (
+        ) : imageUrl && !imageLoadError ? (
           <View style={styles.imageContainer}>
             <Image
               source={{ uri: imageUrl }}
@@ -1070,9 +1076,22 @@ const ArticleDetailScreen = ({ route }) => {
                   setImageAspectRatio(clampedRatio);
                 }
               }}
+              onError={() => {
+                console.log('[ArticleDetail] Image failed to load, using fallback');
+                setImageLoadError(true);
+              }}
             />
           </View>
-        ) : null}
+        ) : (
+          <View style={styles.imageContainer}>
+            <Image
+              source={FALLBACK_IMAGE}
+              style={[styles.image, { aspectRatio: 16 / 9 }]}
+              contentFit="cover"
+              transition={200}
+            />
+          </View>
+        )}
 
 
         <View style={styles.content}>

@@ -24,6 +24,7 @@ import { formatRelativeTime, getImageUrl } from '../utils/dateUtils';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - SPACING.md * 3) / 2;
+const FALLBACK_IMAGE = require('../../assets/images/nation-press.webp');
 
 // Web story categories
 const WEB_STORY_CATEGORIES = [
@@ -49,6 +50,7 @@ const WebStoriesScreen = () => {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [currentLanguage, setCurrentLanguage] = useState('english');
+  const [imageLoadErrors, setImageLoadErrors] = useState(new Set());
 
   // Load web stories for a specific category
   const loadStoriesByCategory = async (category, pageNum = 0, append = false) => {
@@ -233,6 +235,7 @@ const WebStoriesScreen = () => {
     // Clear stories immediately when category/language changes for smooth transition
     setStories([]);
     setCategoryStories({});
+    setImageLoadErrors(new Set()); // Reset image errors on refresh
     setLoading(true);
     setPage(0);
     setHasMore(true);
@@ -328,6 +331,8 @@ const WebStoriesScreen = () => {
     const imageUrl = getImageUrl(item.featuredImage || item.featured_image);
     const title = item.title_unique || item.title || item.headline || 'Untitled Story';
     const date = formatRelativeTime(item.storyAt || item.story_at || item.publishedAt);
+    const itemId = item.id || item.slug || item.slug_unique || String(item);
+    const hasImageError = imageLoadErrors.has(itemId);
 
     return (
       <TouchableOpacity
@@ -336,15 +341,23 @@ const WebStoriesScreen = () => {
         activeOpacity={0.7}
       >
         <View style={styles.imageContainer}>
-          {imageUrl ? (
+          {imageUrl && !hasImageError ? (
             <Image
               source={{ uri: imageUrl }}
               style={styles.image}
               contentFit="cover"
               transition={200}
+              onError={() => {
+                setImageLoadErrors(prev => new Set(prev).add(itemId));
+              }}
             />
           ) : (
-            <View style={[styles.image, styles.placeholder]} />
+            <Image
+              source={FALLBACK_IMAGE}
+              style={styles.image}
+              contentFit="cover"
+              transition={200}
+            />
           )}
           <View style={styles.playButton}>
             <View style={styles.playIcon}>
@@ -395,6 +408,8 @@ const WebStoriesScreen = () => {
           {categoryData.map((item, index) => {
             const imageUrl = getImageUrl(item.featuredImage || item.featured_image);
             const title = item.title_unique || item.title || item.headline || 'Untitled Story';
+            const itemId = item.id || item.slug || item.slug_unique || `${categoryId}-${index}`;
+            const hasImageError = imageLoadErrors.has(itemId);
 
             return (
               <TouchableOpacity
@@ -404,15 +419,23 @@ const WebStoriesScreen = () => {
                 activeOpacity={0.7}
               >
                 <View style={styles.horizontalImageContainer}>
-                  {imageUrl ? (
+                  {imageUrl && !hasImageError ? (
                     <Image
                       source={{ uri: imageUrl }}
                       style={styles.horizontalImage}
                       contentFit="cover"
                       transition={200}
+                      onError={() => {
+                        setImageLoadErrors(prev => new Set(prev).add(itemId));
+                      }}
                     />
                   ) : (
-                    <View style={[styles.horizontalImage, styles.placeholder]} />
+                    <Image
+                      source={FALLBACK_IMAGE}
+                      style={styles.horizontalImage}
+                      contentFit="cover"
+                      transition={200}
+                    />
                   )}
                   <View style={styles.horizontalPlayButton}>
                     <View style={styles.horizontalPlayIcon}>

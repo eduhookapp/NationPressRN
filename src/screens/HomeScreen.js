@@ -28,6 +28,7 @@ import { storage } from '../utils/storage';
 
 const logo = require('../../assets/images/logo.png');
 const logoHindi = require('../../assets/images/logo-hindi.png');
+const FALLBACK_IMAGE = require('../../assets/images/nation-press.webp');
 
 const { width: initialWidth } = Dimensions.get('window');
 
@@ -48,6 +49,7 @@ const HomeScreen = () => {
   // Web stories state (for all supported categories)
   const [webStories, setWebStories] = useState({});
   const [loadingWebStories, setLoadingWebStories] = useState({});
+  const [webStoryImageErrors, setWebStoryImageErrors] = useState(new Set());
   // Track which ads have loaded successfully
   const [adsLoaded, setAdsLoaded] = useState({});
   // TTS state for breaking news
@@ -813,6 +815,7 @@ const HomeScreen = () => {
   useEffect(() => {
     // Clear web stories when language changes to ensure fresh data
     setWebStories({});
+    setWebStoryImageErrors(new Set()); // Reset image errors on language change
     
     // Categories that have web stories available
     const webStoryCategories = ['entertainment', 'sports', 'international', 'national'];
@@ -1068,6 +1071,8 @@ const HomeScreen = () => {
             {categoryStories.map((story, storyIndex) => {
               const imageUrl = getImageUrl(story.featuredImage || story.featured_image);
               const title = story.title || story.headline || '';
+              const storyId = story.id || story.slug || story.slug_unique || `webstory-${item.category}-${storyIndex}`;
+              const hasImageError = webStoryImageErrors.has(storyId);
               
               return (
                 <TouchableOpacity
@@ -1077,15 +1082,23 @@ const HomeScreen = () => {
                   activeOpacity={0.8}
                 >
                   <View style={styles.webStoryImageContainer}>
-                    {imageUrl ? (
+                    {imageUrl && !hasImageError ? (
                       <Image
                         source={{ uri: imageUrl }}
                         style={styles.webStoryImage}
                         contentFit="cover"
                         transition={200}
+                        onError={() => {
+                          setWebStoryImageErrors(prev => new Set(prev).add(storyId));
+                        }}
                       />
                     ) : (
-                      <View style={[styles.webStoryImage, styles.webStoryPlaceholder]} />
+                      <Image
+                        source={FALLBACK_IMAGE}
+                        style={styles.webStoryImage}
+                        contentFit="cover"
+                        transition={200}
+                      />
                     )}
                     <View style={styles.webStoryPlayButton}>
                       <View style={styles.webStoryPlayIcon}>
